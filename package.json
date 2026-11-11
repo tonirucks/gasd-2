@@ -16,7 +16,8 @@
   "dependencies": {
     "@lucide/svelte": "^1.70.0",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "svelte-dnd-action": "^0.9.80"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",

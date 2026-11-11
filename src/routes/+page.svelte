@@ -1,109 +1,164 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { ArrowRight, BookOpen, Check, Layers, LoaderCircle, MessageCircle, TriangleAlert } from "@lucide/svelte";
+  import { flip } from "svelte/animate";
+  import { MediaQuery } from "svelte/reactivity";
+  import {
+    dragHandleZone,
+    SHADOW_ITEM_MARKER_PROPERTY_NAME,
+    type DndEvent,
+  } from "svelte-dnd-action";
+  import AppHeader from "./list/AppHeader.svelte";
+  import DoneSection from "./list/DoneSection.svelte";
+  import InlineForm from "./list/InlineForm.svelte";
+  import ListHeader from "./list/ListHeader.svelte";
+  import TaskSection from "./list/TaskSection.svelte";
+  import { createDemoData } from "./list/demo-data";
+  import type { Section, Task } from "./list/types";
 
-  let name = $state("");
-  let greetMsg = $state("");
-  let error = $state("");
-  let pending = $state(false);
+  const demo = createDemoData();
+  let sections = $state(demo.sections);
+  let tasks = $state(demo.tasks);
+  let addingTo = $state<number | null>(null);
+  let addingSection = $state(false);
+  let sectionName = $state("");
+  let editingSection = $state<number | null>(null);
 
-  const technologies = [
-    { name: "Tauri", href: "https://tauri.app", logo: "/tauri.svg" },
-    { name: "SvelteKit", href: "https://svelte.dev", logo: "/svelte.svg" },
-    { name: "Vite", href: "https://vite.dev", logo: "/vite.svg" },
-  ];
+  const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
+  let flipDurationMs = $derived(reducedMotion.current ? 0 : 140);
+  let doneTasks = $derived(tasks.filter((task) => task.done));
+  let remaining = $derived(
+    tasks.filter((task) => !task.done && !task.isDndShadowItem).length,
+  );
 
-  async function greet(event: SubmitEvent) {
-    event.preventDefault();
-    if (pending) return;
+  function reorderSections(event: CustomEvent<DndEvent<Section>>): void {
+    sections = event.detail.items;
+  }
 
-    pending = true;
-    greetMsg = "";
-    error = "";
+  function reorderTasks(incoming: Task[], sectionId: number | null): void {
+    const incomingIds = new Set(incoming.map((task) => task.id));
+    // Replace only this zone; the other sections keep their task order.
+    tasks = [
+      ...tasks.filter((task) => {
+        const belongsToZone =
+          sectionId === null
+            ? task.done
+            : !task.done && task.sectionId === sectionId;
+        return !belongsToZone && !incomingIds.has(task.id);
+      }),
+      ...incoming.map((task) => ({
+        ...task,
+        sectionId: sectionId ?? task.sectionId,
+        done: sectionId === null,
+      })),
+    ];
+  }
 
-    try {
-      greetMsg = await invoke<string>("greet", { name });
-    } catch {
-      error = "Couldn't send your greeting. Make sure you're running the desktop app and try again.";
-    } finally {
-      pending = false;
-    }
+  function addTask(title: string, sectionId: number): void {
+    tasks.push({ id: Date.now(), title, sectionId, done: false });
+    addingTo = null;
+  }
+
+  function toggleTask(taskId: number): void {
+    const task = tasks.find((task) => task.id === taskId);
+    if (task) task.done = !task.done;
+  }
+
+  function removeTask(taskId: number): void {
+    tasks = tasks.filter((task) => task.id !== taskId);
+  }
+
+  function addSection(name: string): void {
+    sections.push({ id: Date.now(), name });
+    sectionName = "";
+    addingSection = false;
+  }
+
+  function renameSection(section: Section, name: string): void {
+    section.name = name;
+    editingSection = null;
   }
 </script>
 
 <svelte:head>
-  <title>GASD · Getting started</title>
-  <meta name="description" content="Your Tauri and SvelteKit app, styled with Tailwind CSS and Lucide icons." />
+  <title>My list · little by little</title>
+  <meta
+    name="description"
+    content="A simple personal task list. Your sections, one thing at a time."
+  />
 </svelte:head>
 
-<main class="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-16 sm:px-10">
-  <header class="mb-10">
-    <div class="mb-6 inline-flex size-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20">
-      <Layers size={24} aria-hidden="true" />
-    </div>
-    <p class="mb-2 text-sm font-semibold tracking-widest text-indigo-600 uppercase dark:text-indigo-400">GASD / Getting started</p>
-    <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">A fresh start.</h1>
-    <p class="mt-4 max-w-lg text-base leading-7 text-slate-600 dark:text-slate-400">
-      Tauri + SvelteKit, with Tailwind CSS for styling and Lucide for the little details. Ready for whatever comes next.
-    </p>
-  </header>
-
-  <section aria-labelledby="greeting-heading" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-    <div class="mb-5 flex items-center gap-3">
-      <MessageCircle size={20} class="text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-      <h2 id="greeting-heading" class="text-lg font-semibold">Say hello</h2>
-    </div>
-    <p class="mb-6 text-sm leading-6 text-slate-600 dark:text-slate-400">Try a greeting to check the connection to your desktop app.</p>
-    <form onsubmit={greet}>
-      <label for="greet-input" class="mb-2 block text-sm font-medium">Your name</label>
-      <div class="flex flex-col gap-3 sm:flex-row">
-        <input
-          id="greet-input"
-          name="name"
-          autocomplete="given-name"
-          placeholder="Enter your name"
-          bind:value={name}
-          class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950"
-        />
-        <button type="submit" disabled={pending} class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-wait disabled:opacity-60">
-          {pending ? "Sending…" : "Send greeting"}
-          {#if pending}
-            <LoaderCircle size={16} class="motion-safe:animate-spin" aria-hidden="true" />
-          {:else}
-            <ArrowRight size={16} aria-hidden="true" />
-          {/if}
-        </button>
-      </div>
-    </form>
-    <div aria-live="polite" aria-atomic="true">
-      {#if greetMsg}
-        <p class="mt-5 flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-          <Check size={18} class="shrink-0" aria-hidden="true" />
-          {greetMsg}
-        </p>
-      {/if}
-      {#if error}
-        <p class="mt-5 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-          <TriangleAlert size={18} class="shrink-0" aria-hidden="true" />
-          {error}
-        </p>
-      {/if}
-    </div>
-  </section>
-
-  <footer class="mt-8">
-    <p class="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-      <BookOpen size={14} aria-hidden="true" />
-      Explore the stack
-    </p>
-    <nav aria-label="Technology documentation" class="flex flex-wrap gap-3">
-      {#each technologies as technology}
-        <a href={technology.href} target="_blank" rel="noreferrer" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-indigo-700 dark:hover:text-indigo-400">
-          <img src={technology.logo} class="size-4" alt="" />
-          {technology.name}
-          <ArrowRight size={14} class="-rotate-45" aria-hidden="true" />
-        </a>
+<div>
+  <AppHeader />
+  <main class="mx-auto max-w-180 px-7 pt-16 pb-20 max-[580px]:pt-9.5 max-[580px]:pb-12.5">
+    <ListHeader
+      {remaining}
+      onaddtask={() => (addingTo = sections[0].id)}
+      onaddsection={() => (addingSection = true)}
+    />
+    <div
+      class="flex flex-col gap-8"
+      use:dragHandleZone={{
+        items: sections,
+        type: "sections",
+        useCursorForDetection: true,
+        flipDurationMs,
+        dropTargetStyle: {},
+        delayTouchStart: true,
+      }}
+      onconsider={reorderSections}
+      onfinalize={reorderSections}
+      aria-label="Reorder sections"
+    >
+      {#each sections as section (`${section.id}${section[SHADOW_ITEM_MARKER_PROPERTY_NAME] ? "-shadow" : ""}`)}
+        <section
+          class="group/section -ml-7 pl-7"
+          aria-label={section.name}
+          data-is-dnd-shadow-item-hint={section[
+            SHADOW_ITEM_MARKER_PROPERTY_NAME
+          ]}
+          animate:flip={{ duration: flipDurationMs }}
+        >
+          <TaskSection
+            {section}
+            {sections}
+            tasks={tasks.filter(
+              (task) => task.sectionId === section.id && !task.done,
+            )}
+            adding={addingTo === section.id}
+            editing={editingSection === section.id}
+            {flipDurationMs}
+            onstarttask={() => (addingTo = section.id)}
+            oncanceltask={() => (addingTo = null)}
+            onaddtask={(title) => addTask(title, section.id)}
+            onstartrename={() => (editingSection = section.id)}
+            oncancelrename={() => (editingSection = null)}
+            onrename={(name) => renameSection(section, name)}
+            onreorder={(items) => reorderTasks(items, section.id)}
+            ontoggle={toggleTask}
+            onremove={removeTask}
+          />
+        </section>
       {/each}
-    </nav>
-  </footer>
-</main>
+    </div>
+    {#if addingSection}
+      <div class="mt-6 mb-10">
+        <InlineForm
+          bind:value={sectionName}
+          label="New section name"
+          placeholder="Name your section"
+          saveLabel="Save section"
+          cancelLabel="Cancel section"
+          onsave={addSection}
+          oncancel={() => (addingSection = false)}
+        />
+      </div>
+    {/if}
+    <DoneSection
+      tasks={doneTasks}
+      {sections}
+      {flipDurationMs}
+      onreorder={(items) => reorderTasks(items, null)}
+      ontoggle={toggleTask}
+      onremove={removeTask}
+    />
+  </main>
+</div>
