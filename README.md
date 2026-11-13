@@ -33,3 +33,19 @@ npm run build        # Production frontend build
 
 Frontend code lives in `src/`; native Rust code and app configuration live in
 `src-tauri/`. The starter includes a `greet` command demonstrating frontend-to-Rust calls.
+
+## Shared Rust backend
+
+`crates/gasd-core/` contains the transport-independent service/repository layer
+and SQLite migrations for sections and tasks. It is not connected to Tauri
+commands or a CLI yet. See [the backend guide](crates/gasd-core/README.md) for
+usage, persistence behavior, and adapter responsibilities.
+
+The root Cargo workspace shares one `Cargo.lock`; its default member is the core
+crate so backend checks do not require desktop system libraries:
+
+```sh
+cargo test
+cargo clippy -p gasd-core --all-targets -- -D warnings
+cargo fmt --all -- --check
+```
