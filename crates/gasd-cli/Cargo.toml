@@ -1,0 +1,18 @@
+[package]
+name = "gasd-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Non-interactive command-line interface for gasd"
+
+[[bin]]
+name = "gasd"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+gasd-core = { version = "0.1.0", path = "../gasd-core" }
+serde = "1"
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

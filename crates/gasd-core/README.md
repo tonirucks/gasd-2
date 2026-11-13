@@ -1,7 +1,9 @@
 # gasd-core
 
-Shared Rust backend for the desktop app and a future CLI. No Tauri, runtime,
-command handlers, default paths, demo data, or global state are required.
+Shared Rust backend for the desktop app and CLI. No Tauri, runtime,
+command handlers, demo data, or global state are required. The optional `storage`
+helpers select a shared per-user database path; explicit paths and in-memory
+repositories remain available.
 
 ## Structure
 
@@ -11,6 +13,7 @@ command handlers, default paths, demo data, or global state are required.
 - `error`: shared `Error` and `Result` types.
 - `validation`: private input validation helpers.
 - `sqlite`: shared connection setup, versioned migrations, and persistence helpers.
+- `storage`: shared native database location and parent-directory creation.
 - `model`: convenience re-exports of the domain models.
 
 `Service` handles input validation and delegates persistence to `SqliteRepository`.
@@ -76,8 +79,9 @@ app.update_task(task.id, TaskUpdate {
   Unknown newer schema versions are rejected. Add sequential migrations when
   evolving the schema; do not edit an already-released migration.
 - Adapters select a shared database path, create its parent directory, and map
-  errors to IPC responses or CLI exit codes. No database is opened at app startup
-  yet. No default sections are seeded.
+  errors to IPC responses or CLI exit codes. The core's `storage` module
+  provides shared path selection and opening for both adapters; the desktop opens
+  that database at startup. No default sections are seeded.
 - Calls are synchronous. A future async Tauri adapter should use a blocking worker
   and serialize access to its service/connection rather than blocking the UI thread.
   Prefer explicit desired completion state over a read-then-toggle operation.

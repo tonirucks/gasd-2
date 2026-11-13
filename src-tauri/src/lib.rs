@@ -8,7 +8,13 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let service = gasd_core::storage::open(gasd_core::storage::database_path()?)?;
+            app.manage(std::sync::Mutex::new(service));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+use tauri::Manager;

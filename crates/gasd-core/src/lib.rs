@@ -17,6 +17,7 @@ pub mod model;
 pub mod sections;
 pub mod service;
 pub mod sqlite;
+pub mod storage;
 pub mod tasks;
 mod validation;
 

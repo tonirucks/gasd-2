@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/gasd-core", "src-tauri"]
-default-members = ["crates/gasd-core"]
+members = ["crates/gasd-core", "crates/gasd-cli", "src-tauri"]
+default-members = ["crates/gasd-core", "crates/gasd-cli"]
 resolver = "3"
 
 [profile.release]
