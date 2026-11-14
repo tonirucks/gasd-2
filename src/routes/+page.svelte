@@ -7,13 +7,13 @@
     TRIGGERS,
     type DndEvent,
   } from "svelte-dnd-action";
-  import AppHeader from "./list/AppHeader.svelte";
-  import { provideBoard } from "./list/context";
-  import { createBoard } from "./list/model.svelte";
-  import InlineForm from "./list/InlineForm.svelte";
-  import ListHeader from "./list/ListHeader.svelte";
-  import TaskSection from "./list/TaskSection.svelte";
-  import type { Section } from "./list/types";
+  import AppHeader from "./list/components/AppHeader.svelte";
+  import InlineForm from "./list/components/InlineForm.svelte";
+  import ListHeader from "./list/components/ListHeader.svelte";
+  import TaskSection from "./list/components/TaskSection.svelte";
+  import { provideBoard } from "./list/state/context";
+  import { createBoard } from "./list/state/model.svelte";
+  import type { Section } from "./list/state/types";
 
   const board = createBoard();
   provideBoard(board);

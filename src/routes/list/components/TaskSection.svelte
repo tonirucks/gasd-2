@@ -3,9 +3,9 @@
   import { dragHandle } from "svelte-dnd-action";
   import InlineForm from "./InlineForm.svelte";
   import TaskList from "./TaskList.svelte";
-  import { columns, isVisible } from "./board";
-  import type { Section } from "./types";
-  import { getBoard } from "./context";
+  import { columns, isVisible } from "../state/board";
+  import type { Section } from "../state/types";
+  import { getBoard } from "../state/context";
 
   const board = getBoard();
   let { section }: { section: Section } = $props();

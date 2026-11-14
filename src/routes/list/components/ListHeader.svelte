@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ListPlus, Plus } from "@lucide/svelte";
-  import { getBoard } from "./context";
+  import { getBoard } from "../state/context";
 
   const board = getBoard();
 </script>

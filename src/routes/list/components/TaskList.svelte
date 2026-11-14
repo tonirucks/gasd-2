@@ -2,9 +2,9 @@
   import { flip } from "svelte/animate";
   import { dragHandleZone, SOURCES, TRIGGERS, type DndEvent } from "svelte-dnd-action";
   import TaskRow from "./TaskRow.svelte";
-  import type { Task } from "./types";
+  import type { Task } from "../state/types";
   import type { TaskStatus } from "$lib/data/types";
-  import { getBoard } from "./context";
+  import { getBoard } from "../state/context";
 
   const board = getBoard();
   let {

@@ -2,8 +2,8 @@
   import { GripVertical, Pencil, X } from "@lucide/svelte";
   import InlineForm from "./InlineForm.svelte";
   import { dragHandle } from "svelte-dnd-action";
-  import type { Task } from "./types";
-  import { getBoard } from "./context";
+  import type { Task } from "../state/types";
+  import { getBoard } from "../state/context";
 
   const board = getBoard();
   let { task }: { task: Task } = $props();
