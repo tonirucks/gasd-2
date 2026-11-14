@@ -37,14 +37,23 @@ fn all_status_transitions_preserve_fields_and_use_the_correct_list() {
             TaskStatus::Done,
         ] {
             let before = app.set_task_status(task.id, source).unwrap();
+            let next_position = app
+                .get_tasks()
+                .unwrap()
+                .iter()
+                .filter(|other| other.id != task.id && other.status == destination)
+                .map(|other| other.position)
+                .max()
+                .unwrap_or(-1)
+                + 1;
             let after = app.set_task_status(task.id, destination).unwrap();
             assert_eq!(after.status, destination);
             assert_eq!(after.title, task.title);
             assert_eq!(after.section_id, task.section_id);
-            if source.is_done() == destination.is_done() {
+            if source == destination {
                 assert_eq!(after.position, before.position);
-            } else if !destination.is_done() {
-                assert_eq!(app.get_tasks().unwrap().last().unwrap().id, task.id);
+            } else {
+                assert_eq!(after.position, next_position);
             }
             assert_eq!(app.get_task(task.id).unwrap(), after);
         }
@@ -77,16 +86,38 @@ fn updates_and_placement_preserve_active_statuses() {
             )
             .unwrap();
         assert_eq!(edited.status, status);
-        app.place_task(task.id, TaskList::Active { section_id: b.id }, &[task.id])
-            .unwrap();
+        app.place_task(
+            task.id,
+            TaskList {
+                section_id: b.id,
+                status,
+            },
+            &[task.id],
+        )
+        .unwrap();
         assert_eq!(app.get_task(task.id).unwrap().status, status);
         let before = app.get_task(task.id).unwrap();
         assert!(matches!(
-            app.place_task(task.id, TaskList::Done, &[]),
+            app.place_task(
+                task.id,
+                TaskList {
+                    section_id: b.id,
+                    status: TaskStatus::Done
+                },
+                &[]
+            ),
             Err(Error::InvalidOrder)
         ));
         assert_eq!(app.get_task(task.id).unwrap(), before);
-        app.place_task(task.id, TaskList::Done, &[task.id]).unwrap();
+        app.place_task(
+            task.id,
+            TaskList {
+                section_id: b.id,
+                status: TaskStatus::Done,
+            },
+            &[task.id],
+        )
+        .unwrap();
         assert_eq!(app.get_task(task.id).unwrap().status, TaskStatus::Done);
         let reopened = app
             .update_task(

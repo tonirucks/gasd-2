@@ -38,14 +38,10 @@ pub struct TaskUpdate {
     pub status: TaskStatus,
 }
 
-/// Active tasks are ordered within their section; completed tasks share one list.
+/// Tasks are ordered within each section/status column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum TaskList {
-    Active { section_id: i64 },
-    Done,
+#[serde(rename_all = "camelCase")]
+pub struct TaskList {
+    pub section_id: i64,
+    pub status: TaskStatus,
 }

@@ -124,7 +124,13 @@ fn missing_entities_return_typed_errors() {
         Err(Error::NotFound { entity: "task", .. })
     ));
     assert!(matches!(
-        app.reorder_tasks(TaskList::Active { section_id: 99 }, &[]),
+        app.reorder_tasks(
+            TaskList {
+                section_id: 99,
+                status: TaskStatus::Open
+            },
+            &[]
+        ),
         Err(Error::NotFound { .. })
     ));
 }
@@ -187,7 +193,10 @@ fn task_order_is_scoped_and_invalid_orders_are_atomic() {
     let first = app.create_task(a.id, "First").unwrap();
     let second = app.create_task(a.id, "Second").unwrap();
     let other = app.create_task(b.id, "Other").unwrap();
-    let list = TaskList::Active { section_id: a.id };
+    let list = TaskList {
+        section_id: a.id,
+        status: TaskStatus::Open,
+    };
     app.reorder_tasks(list, &[second.id, first.id]).unwrap();
     assert_eq!(task_ids(&app), [second.id, first.id, other.id]);
     let before = app.get_tasks().unwrap();
@@ -225,20 +234,30 @@ fn moves_completion_and_reopening_append_to_the_correct_list() {
     app.update_task(second.id, update(&second, b.id, true))
         .unwrap();
     assert_eq!(task_ids(&app), [first.id, second.id]);
-    app.reorder_tasks(TaskList::Done, &[second.id, first.id])
-        .unwrap();
+    app.reorder_tasks(
+        TaskList {
+            section_id: b.id,
+            status: TaskStatus::Done,
+        },
+        &[second.id, first.id],
+    )
+    .unwrap();
     assert_eq!(task_ids(&app), [second.id, first.id]);
 
-    // A completed task keeps its done-list position when its section changes.
-    let done = app.get_task(first.id).unwrap();
+    // A completed task appends to its new section's done column.
+    let existing = app.create_task(a.id, "Already done").unwrap();
+    app.set_task_status(existing.id, TaskStatus::Done).unwrap();
     let changed = app
         .update_task(first.id, update(&first, a.id, true))
         .unwrap();
-    assert_eq!(changed.position, done.position);
+    assert_eq!(changed.position, 1);
     let active = app.create_task(a.id, "Active").unwrap();
     app.update_task(first.id, update(&first, a.id, false))
         .unwrap();
-    assert_eq!(task_ids(&app), [active.id, first.id, second.id]);
+    assert_eq!(
+        task_ids(&app),
+        [active.id, first.id, existing.id, second.id]
+    );
 }
 
 #[test]
@@ -264,8 +283,9 @@ fn file_database_survives_reopening_and_connections_share_data() {
     let b = first.create_task(section.id, "B").unwrap();
     first
         .reorder_tasks(
-            TaskList::Active {
+            TaskList {
                 section_id: section.id,
+                status: TaskStatus::Open,
             },
             &[b.id, a.id],
         )
@@ -276,8 +296,9 @@ fn file_database_survives_reopening_and_connections_share_data() {
     // Stale UI orders cannot silently omit tasks added by another client.
     assert!(matches!(
         first.reorder_tasks(
-            TaskList::Active {
-                section_id: section.id
+            TaskList {
+                section_id: section.id,
+                status: TaskStatus::Open,
             },
             &[b.id, a.id]
         ),
@@ -400,7 +421,10 @@ fn placing_tasks_moves_and_orders_the_destination_atomically() {
     let b = app.create_section("B").unwrap();
     let first = app.create_task(a.id, "First").unwrap();
     let second = app.create_task(b.id, "Second").unwrap();
-    let destination = TaskList::Active { section_id: b.id };
+    let destination = TaskList {
+        section_id: b.id,
+        status: TaskStatus::Open,
+    };
     let before = app.get_tasks().unwrap();
     for ids in [
         vec![first.id],
@@ -418,46 +442,81 @@ fn placing_tasks_moves_and_orders_the_destination_atomically() {
         .unwrap();
     assert_eq!(task_ids(&app), [first.id, second.id]);
     assert_eq!(app.get_task(first.id).unwrap().section_id, b.id);
-    app.place_task(first.id, TaskList::Done, &[first.id])
-        .unwrap();
+    app.place_task(
+        first.id,
+        TaskList {
+            section_id: b.id,
+            status: TaskStatus::Done,
+        },
+        &[first.id],
+    )
+    .unwrap();
     assert_eq!(app.get_task(first.id).unwrap().section_id, b.id);
-    app.place_task(second.id, TaskList::Done, &[second.id, first.id])
-        .unwrap();
+    app.place_task(
+        second.id,
+        TaskList {
+            section_id: b.id,
+            status: TaskStatus::Done,
+        },
+        &[second.id, first.id],
+    )
+    .unwrap();
     assert_eq!(task_ids(&app), [second.id, first.id]);
-    app.place_task(first.id, TaskList::Active { section_id: a.id }, &[first.id])
-        .unwrap();
+    app.place_task(
+        first.id,
+        TaskList {
+            section_id: a.id,
+            status: TaskStatus::Open,
+        },
+        &[first.id],
+    )
+    .unwrap();
     assert_eq!(app.get_task(first.id).unwrap().status, TaskStatus::Open);
     assert_eq!(app.get_task(first.id).unwrap().section_id, a.id);
     assert!(matches!(
-        app.place_task(first.id, TaskList::Active { section_id: 999 }, &[first.id]),
+        app.place_task(
+            first.id,
+            TaskList {
+                section_id: 999,
+                status: TaskStatus::Open
+            },
+            &[first.id]
+        ),
         Err(Error::NotFound { .. })
     ));
 }
 
 #[test]
-fn task_list_ipc_uses_tagged_camel_case() {
-    let active = TaskList::Active { section_id: 42 };
+fn task_list_ipc_uses_camel_case() {
+    let active = TaskList {
+        section_id: 42,
+        status: TaskStatus::InProgress,
+    };
     let json = serde_json::to_value(active).unwrap();
     assert_eq!(
         json,
-        serde_json::json!({ "kind": "active", "sectionId": 42 })
+        serde_json::json!({ "sectionId": 42, "status": "inProgress" })
     );
     assert_eq!(serde_json::from_value::<TaskList>(json).unwrap(), active);
-    assert_eq!(
-        serde_json::to_value(TaskList::Done).unwrap(),
-        serde_json::json!({ "kind": "done" })
-    );
 }
 
 #[test]
 fn empty_lists_can_be_reordered_and_deleted_ids_are_not_reused() {
     let mut app = service();
     app.reorder_sections(&[]).unwrap();
-    app.reorder_tasks(TaskList::Done, &[]).unwrap();
     let section = app.create_section("A").unwrap();
     app.reorder_tasks(
-        TaskList::Active {
+        TaskList {
             section_id: section.id,
+            status: TaskStatus::Done,
+        },
+        &[],
+    )
+    .unwrap();
+    app.reorder_tasks(
+        TaskList {
+            section_id: section.id,
+            status: TaskStatus::Open,
         },
         &[],
     )

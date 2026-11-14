@@ -1,189 +1,95 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { createListStore } from "$lib/data/list-store";
-  import type { TaskList } from "$lib/data/types";
   import { flip } from "svelte/animate";
-  import { MediaQuery } from "svelte/reactivity";
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
+    SOURCES,
+    TRIGGERS,
     type DndEvent,
   } from "svelte-dnd-action";
   import AppHeader from "./list/AppHeader.svelte";
-  import DoneSection from "./list/DoneSection.svelte";
+  import { provideBoard } from "./list/context";
+  import { createBoard } from "./list/model.svelte";
   import InlineForm from "./list/InlineForm.svelte";
   import ListHeader from "./list/ListHeader.svelte";
   import TaskSection from "./list/TaskSection.svelte";
-  import type { Section, Task } from "./list/types";
+  import type { Section } from "./list/types";
 
-  const list = createListStore();
-  let sections = $state<Section[]>([]);
-  let tasks = $state<Task[]>([]);
-  let dragging = false;
-  $effect(() => {
-    sections = $list.data.sections;
-    tasks = $list.data.tasks;
-  });
-  onMount(() => { void list.load(); });
-  let addingTo = $state<number | null>(null);
-  let addingSection = $state(false);
+  const board = createBoard();
+  provideBoard(board);
   let sectionName = $state("");
-  let editingSection = $state<number | null>(null);
-
-  const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
-  let flipDurationMs = $derived(reducedMotion.current ? 0 : 140);
-  let doneTasks = $derived(tasks.filter((task) => task.status === "done"));
-  let remaining = $derived(
-    tasks.filter((task) => task.status !== "done" && !task.isDndShadowItem).length,
-  );
 
   function reorderSections(event: CustomEvent<DndEvent<Section>>): void {
-    dragging = true;
-    sections = event.detail.items;
+    board.reorderSections(event.detail.items);
+    if (event.detail.info.trigger === TRIGGERS.DRAG_STOPPED) saveSections(event);
   }
 
   function saveSections(event: CustomEvent<DndEvent<Section>>): void {
-    sections = event.detail.items;
-    dragging = false;
-    const ids = sections.filter((section) => !section.isDndShadowItem).map((section) => section.id);
-    void list.reorderSections(ids);
-  }
-
-  function reorderTasks(incoming: Task[], sectionId: number | null): void {
-    dragging = true;
-    const incomingIds = new Set(incoming.map((task) => task.id));
-    // Replace only this zone; the other sections keep their task order.
-    tasks = [
-      ...tasks.filter((task) => {
-        const belongsToZone =
-          sectionId === null
-            ? task.status === "done"
-            : task.status !== "done" && task.sectionId === sectionId;
-        return !belongsToZone && !incomingIds.has(task.id);
-      }),
-      ...incoming.map((task): Task => {
-        let status = task.status;
-        if (sectionId === null) status = "done";
-        else if (status === "done") status = "open";
-        return { ...task, sectionId: sectionId ?? task.sectionId, status };
-      }),
-    ];
-  }
-
-  function placeTask(incoming: Task[], id: number, sectionId: number | null): void {
-    dragging = false;
-    const destination: TaskList = sectionId === null ? { kind: "done" } : { kind: "active", sectionId };
-    const ids = incoming.filter((task) => !task.isDndShadowItem).map((task) => task.id);
-    void list.placeTask(id, destination, ids);
-  }
-
-  async function addTask(title: string, sectionId: number): Promise<void> {
-    if (await list.createTask(sectionId, title)) addingTo = null;
-  }
-
-  function toggleTask(taskId: number): void {
-    const task = $list.data.tasks.find((task) => task.id === taskId);
-    if (task) void list.updateTask(task.id, { title: task.title, sectionId: task.sectionId, status: task.status === "done" ? "open" : "done" });
-  }
-
-  function editTask(taskId: number, title: string): Promise<boolean> {
-    const task = $list.data.tasks.find((task) => task.id === taskId);
-    if (!task) return Promise.resolve(false);
-    return list.updateTask(task.id, { title, sectionId: task.sectionId, status: task.status });
+    board.saveSections(event.detail.items);
   }
 
   async function addSection(name: string): Promise<void> {
-    if (await list.createSection(name)) {
-      sectionName = "";
-      addingSection = false;
-    }
-  }
-
-  async function renameSection(section: Section, name: string): Promise<void> {
-    if (await list.renameSection(section.id, name)) editingSection = null;
+    if (await board.addSection(name)) sectionName = "";
   }
 </script>
 
-<svelte:window onfocus={() => { if (!dragging) void list.load(); }} />
+<svelte:window onfocus={board.refresh} />
 
 <svelte:head>
-  <title>My list · little by little</title>
+  <title>My board · little by little</title>
   <meta
     name="description"
-    content="A simple personal task list. Your sections, one thing at a time."
+    content="A personal Kanban board. Your sections, one thing at a time."
   />
 </svelte:head>
 
 <div>
   <AppHeader />
-  <main class="mx-auto max-w-180 px-7 pt-16 pb-20 max-[580px]:pt-9.5 max-[580px]:pb-12.5">
-    {#if $list.error}
+  <main class="mx-auto max-w-360 px-7 pt-12 pb-20 max-[580px]:pt-9.5 max-[580px]:pb-12.5">
+    {#if board.state.error}
       <div role="alert" class="mb-6 rounded-md border border-mauve p-4 text-sm">
-        <p>{$list.error}</p>
-        <button class="mt-2 text-mauve" disabled={$list.busy} onclick={() => list.load()}>Retry / refresh</button>
+        <p>{board.state.error}</p>
+        <button class="mt-2 text-mauve" disabled={board.state.busy} onclick={board.load}>Retry / refresh</button>
       </div>
     {/if}
-    <p class="sr-only" role="status">{$list.busy ? "Updating list…" : ""}</p>
-    {#if !$list.loaded}
-      {#if !$list.error}<p class="text-sm text-muted">Loading your list…</p>{/if}
+    <p class="sr-only" role="status">{board.state.busy ? "Updating list…" : ""}</p>
+    {#if !board.state.loaded}
+      {#if !board.state.error}<p class="text-sm text-muted">Loading your list…</p>{/if}
     {:else}
-      <div inert={$list.busy} aria-busy={$list.busy}>
-        <ListHeader
-          {remaining}
-          onaddtask={() => {
-            if (sections.length) addingTo = sections[0].id;
-            else addingSection = true;
-          }}
-          onaddsection={() => (addingSection = true)}
-        />
+      <div inert={board.state.busy} aria-busy={board.state.busy}>
+        <ListHeader />
         <div
           class="flex flex-col gap-8"
           use:dragHandleZone={{
-            items: sections,
+            items: board.sections,
             type: "sections",
             useCursorForDetection: true,
-            flipDurationMs,
+            flipDurationMs: board.flipDurationMs,
             dropTargetStyle: {},
             delayTouchStart: true,
           }}
           onconsider={reorderSections}
-          onfinalize={saveSections}
+          onfinalize={(event) => {
+            if (event.detail.info.source === SOURCES.POINTER) saveSections(event);
+            else reorderSections(event);
+          }}
           aria-label="Reorder sections"
         >
-          {#each sections as section (`${section.id}${section[SHADOW_ITEM_MARKER_PROPERTY_NAME] ? "-shadow" : ""}`)}
+          {#each board.sections as section (`${section.id}${section[SHADOW_ITEM_MARKER_PROPERTY_NAME] ? "-shadow" : ""}`)}
             <section
               class="group/section -ml-7 pl-7"
               aria-label={section.name}
               data-is-dnd-shadow-item-hint={section[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
-              animate:flip={{ duration: flipDurationMs }}
+              animate:flip={{ duration: board.flipDurationMs }}
             >
-              <TaskSection
-                {section}
-                {sections}
-                tasks={tasks.filter((task) => task.sectionId === section.id && task.status !== "done")}
-                adding={addingTo === section.id}
-                editing={editingSection === section.id}
-                {flipDurationMs}
-                onstarttask={() => (addingTo = section.id)}
-                oncanceltask={() => (addingTo = null)}
-                onaddtask={(title) => addTask(title, section.id)}
-                onstartrename={() => (editingSection = section.id)}
-                oncancelrename={() => (editingSection = null)}
-                onrename={(name) => renameSection(section, name)}
-                onreorder={(items) => reorderTasks(items, section.id)}
-                onplace={(items, id) => placeTask(items, id, section.id)}
-                ontoggle={toggleTask}
-                onremove={(id) => { void list.deleteTask(id); }}
-                onedit={editTask}
-                ondeletesection={() => list.deleteSection(section.id)}
-              />
+              <TaskSection {section} />
             </section>
           {/each}
         </div>
-        {#if sections.length === 0 && !addingSection}
+        {#if board.sections.length === 0 && !board.addingSection}
           <p class="text-sm text-muted">Your list is empty. Create a section to start adding tasks.</p>
         {/if}
-        {#if addingSection}
+        {#if board.addingSection}
           <div class="mt-6 mb-10">
             <InlineForm
               bind:value={sectionName}
@@ -192,19 +98,10 @@
               saveLabel="Save section"
               cancelLabel="Cancel section"
               onsave={addSection}
-              oncancel={() => (addingSection = false)}
+              oncancel={board.cancelSection}
             />
           </div>
         {/if}
-        <DoneSection
-          tasks={doneTasks}
-          {flipDurationMs}
-          onreorder={(items) => reorderTasks(items, null)}
-          onplace={(items, id) => placeTask(items, id, null)}
-          ontoggle={toggleTask}
-          onremove={(id) => { void list.deleteTask(id); }}
-          onedit={editTask}
-        />
       </div>
     {/if}
   </main>

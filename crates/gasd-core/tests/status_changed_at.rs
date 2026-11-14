@@ -77,12 +77,22 @@ fn updates_placement_and_rollback_handle_timestamps() {
         )
         .unwrap();
     assert_eq!(edited.status_changed_at, 1);
-    let active = TaskList::Active { section_id: a.id };
+    let active = TaskList {
+        section_id: a.id,
+        status: TaskStatus::Waiting,
+    };
     app.place_task(task.id, active, &[task.id]).unwrap();
     app.reorder_tasks(active, &[task.id]).unwrap();
     assert_eq!(app.get_task(task.id).unwrap().status_changed_at, 1);
     assert!(matches!(
-        app.place_task(task.id, TaskList::Done, &[]),
+        app.place_task(
+            task.id,
+            TaskList {
+                section_id: a.id,
+                status: TaskStatus::Done
+            },
+            &[]
+        ),
         Err(Error::InvalidOrder)
     ));
     assert_eq!(app.get_task(task.id).unwrap().status_changed_at, 1);
@@ -106,7 +116,13 @@ fn updates_placement_and_rollback_handle_timestamps() {
             .unwrap();
         assert!(changed.status_changed_at > 1);
     }
-    for list in [TaskList::Done, active] {
+    for list in [
+        TaskList {
+            section_id: a.id,
+            status: TaskStatus::Done,
+        },
+        active,
+    ] {
         reset_timestamp(&connection, task.id);
         app.place_task(task.id, list, &[task.id]).unwrap();
         assert!(app.get_task(task.id).unwrap().status_changed_at > 1);

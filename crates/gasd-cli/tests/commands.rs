@@ -207,3 +207,69 @@ fn human_output_contains_ids_and_status() {
         );
     }
 }
+
+#[test]
+fn clean_requires_confirmation_and_removes_without_opening_the_database() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("old.sqlite3");
+    // Intentionally not SQLite: clean must not try to open or migrate it.
+    let original = b"outdated or invalid database";
+    std::fs::write(&db, original).unwrap();
+    let output = invoke(&db, &["clean"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(std::fs::read(&db).unwrap(), original);
+    assert!(invoke(&db, &["clean", "--help"]).status.success());
+    assert_eq!(std::fs::read(&db).unwrap(), original);
+
+    let result = json(&db, &["clean", "--yes"]);
+    assert_eq!(
+        result,
+        serde_json::json!([{ "database": db, "removed": true }])
+    );
+    assert!(!db.exists());
+    assert_eq!(json(&db, &["list"]), serde_json::json!([]));
+    assert_eq!(json(&db, &["list", "sections"]), serde_json::json!([]));
+    // Fresh migrations must include the latest task status/timestamp schema.
+    json(&db, &["add", "section", "Fresh"]);
+    let tasks = json(&db, &["add", "task", "Review", "--section", "1"]);
+    assert_eq!(tasks[0]["status"], "open");
+    assert!(tasks[0]["statusChangedAt"].as_i64().unwrap() > 0);
+}
+
+#[test]
+fn clean_honors_explicit_path_and_missing_files_do_not_create_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    let env_db = dir.path().join("keep.sqlite3");
+    let explicit = dir.path().join("remove.sqlite3");
+    std::fs::write(&env_db, "keep").unwrap();
+    std::fs::write(&explicit, "remove").unwrap();
+    let output = invoke(
+        &env_db,
+        &["--database", explicit.to_str().unwrap(), "clean", "--yes"],
+    );
+    assert!(output.status.success());
+    assert!(!explicit.exists());
+    assert_eq!(std::fs::read_to_string(&env_db).unwrap(), "keep");
+    let missing = dir.path().join("missing/db.sqlite3");
+    assert_eq!(
+        json(&missing, &["clean", "--yes"]),
+        serde_json::json!([{ "database": missing, "removed": false }])
+    );
+    assert!(!missing.parent().unwrap().exists());
+}
+
+#[test]
+fn clean_rejects_empty_paths_and_does_not_remove_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    let marker = dir.path().join("keep.txt");
+    std::fs::write(&marker, "keep").unwrap();
+    let output = invoke(dir.path(), &["clean", "--yes"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(&marker).unwrap(), "keep");
+    let output = invoke(dir.path(), &["--database", "", "clean", "--yes"]);
+    assert_eq!(output.status.code(), Some(2));
+    let output = invoke(Path::new(""), &["clean", "--yes"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("database path must not be empty"));
+}

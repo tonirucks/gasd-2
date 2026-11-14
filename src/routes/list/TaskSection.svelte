@@ -3,54 +3,20 @@
   import { dragHandle } from "svelte-dnd-action";
   import InlineForm from "./InlineForm.svelte";
   import TaskList from "./TaskList.svelte";
-  import type { Section, Task } from "./types";
+  import { columns, isVisible } from "./board";
+  import type { Section } from "./types";
+  import { getBoard } from "./context";
 
-  let {
-    section,
-    tasks,
-    sections,
-    adding,
-    editing,
-    flipDurationMs,
-    onstarttask,
-    oncanceltask,
-    onaddtask,
-    onstartrename,
-    oncancelrename,
-    onrename,
-    onreorder,
-    onplace,
-    ontoggle,
-    onremove,
-    onedit,
-    ondeletesection,
-  }: {
-    section: Section;
-    tasks: Task[];
-    sections: Section[];
-    adding: boolean;
-    editing: boolean;
-    flipDurationMs: number;
-    onstarttask: () => void;
-    oncanceltask: () => void;
-    onaddtask: (title: string) => void;
-    onstartrename: () => void;
-    oncancelrename: () => void;
-    onrename: (name: string) => void;
-    onreorder: (tasks: Task[]) => void;
-    onplace: (tasks: Task[], id: number) => void;
-    ontoggle: (taskId: number) => void;
-    onremove: (taskId: number) => void;
-    onedit: (taskId: number, title: string) => Promise<boolean>;
-    ondeletesection: () => Promise<boolean>;
-  } = $props();
+  const board = getBoard();
+  let { section }: { section: Section } = $props();
+  const tasks = $derived(board.tasksForSection(section.id));
 
   let editedName = $state("");
   let confirmingDelete = $state(false);
 
   function startRename(): void {
     editedName = section.name;
-    onstartrename();
+    board.startRename(section.id);
   }
 </script>
 
@@ -64,19 +30,19 @@
     title="Drag to reorder section · Space to pick up"
     ><GripVertical size={15} /></span
   >
-  {#if editing}
+  {#if board.editingSection === section.id}
     <InlineForm
       variant="rename"
       bind:value={editedName}
       label="Section name"
       saveLabel="Save section name"
       cancelLabel="Cancel rename"
-      onsave={onrename}
-      oncancel={oncancelrename}
+      onsave={(name) => board.renameSection(section.id, name)}
+      oncancel={board.cancelRename}
     />
   {:else}
     <h2 class="text-[13px] font-semibold" id={`section-${section.id}`}>{section.name}</h2>
-    <span class="text-[11px] text-muted">{tasks.length}</span>
+    <span class="text-[11px] text-muted">{tasks.filter((task) => !task.isDndShadowItem && task.status !== "done").length} remaining</span>
     <button
       class="inline-flex shrink-0 items-center justify-center rounded p-1.25 text-muted opacity-0 group-hover/section:opacity-100 hover:bg-surface hover:text-text focus-visible:opacity-100 max-[580px]:opacity-100"
       aria-label={`Rename ${section.name}`}
@@ -91,35 +57,46 @@
 {#if confirmingDelete}
   <div class="mb-3 rounded-md border border-surface p-3 text-xs" role="group" aria-label={`Confirm deleting ${section.name}`}>
     <p>Delete “{section.name}” and all its tasks, including completed tasks?</p>
-    <button class="mt-2 mr-4 text-mauve" onclick={async () => { if (await ondeletesection()) confirmingDelete = false; }}>Delete section and tasks</button>
+    <button class="mt-2 mr-4 text-mauve" onclick={async () => { if (await board.deleteSection(section.id)) confirmingDelete = false; }}>Delete section and tasks</button>
     <button class="text-muted" onclick={() => (confirmingDelete = false)}>Cancel</button>
   </div>
 {/if}
-<TaskList
-  {tasks}
-  label={`${section.name} tasks`}
-  {flipDurationMs}
-  {onreorder}
-  {onplace}
-  {ontoggle}
-  {onremove}
-  {onedit}
-/>
-{#if adding}
-  <div class="mt-1.5">
-    <InlineForm
-      label={`New task in ${section.name}`}
-      placeholder="What needs doing?"
-      saveLabel="Save task"
-      cancelLabel="Cancel task"
-      onsave={onaddtask}
-      oncancel={oncanceltask}
-    />
+<div class="overflow-x-auto pb-2">
+  <div class="grid min-w-240 grid-cols-4 gap-3 pt-3">
+    {#each columns as column (column.status)}
+      {@const items = tasks.filter((task) => task.status === column.status && isVisible(task, board.now))}
+      <section class="min-w-0 rounded-lg bg-surface/40 p-2" aria-label={`${section.name} · ${column.label}`}>
+        <h3 class="mb-2 flex items-center gap-2 px-2 py-1 text-xs font-medium text-muted">
+          <span class={["size-1.5 rounded-full", column.status === "done" ? "bg-green" : "bg-mauve"]}></span>
+          {column.label}
+          <span class="ml-auto text-[11px]">{items.filter((task) => !task.isDndShadowItem).length}</span>
+        </h3>
+        <TaskList
+          tasks={items}
+          label={`${section.name} · ${column.label} tasks`}
+          sectionId={section.id}
+          status={column.status}
+        />
+        {#if column.status === "open"}
+          {#if board.addingTo === section.id}
+            <div class="mt-2 p-1">
+              <InlineForm
+                label={`New task in ${section.name}`}
+                placeholder="What needs doing?"
+                saveLabel="Save task"
+                cancelLabel="Cancel task"
+                onsave={(title) => board.addTask(section.id, title)}
+                oncancel={board.cancelTask}
+              />
+            </div>
+          {:else}
+            <button
+              class="inline-flex items-center gap-2 px-2 py-3 text-xs text-muted hover:text-mauve"
+              aria-label={`Add task to ${section.name}`}
+              onclick={() => board.startTask(section.id)}><Plus size={14} /> Add task</button>
+          {/if}
+        {/if}
+      </section>
+    {/each}
   </div>
-{:else}
-  <button
-    class="inline-flex items-center gap-2.5 py-2 text-xs text-muted hover:text-mauve"
-    aria-label={`Add task to ${section.name}`}
-    onclick={onstarttask}><Plus size={15} /> Add task</button
-  >
-{/if}
+</div>

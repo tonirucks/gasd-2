@@ -53,11 +53,18 @@ usage, persistence behavior, and adapter responsibilities.
 - `src/lib/data/list-store.ts` uses Svelte's built-in stores (no runtime store
   dependency). It owns loading, write serialization, refresh, and error recovery.
   Components own only presentation state and transient drag previews.
-- The UI supports section creation/rename/deletion, task creation/edit/deletion,
-  completion/reopening, and drag ordering/moves. Section deletion confirms that
+- The UI shows each section as a Kanban swimlane with Open, In progress, Waiting,
+  and Done today columns. Tasks can be dragged within columns or between columns
+  and sections, changing status/section and order atomically. Section creation,
+  rename, deletion, task creation/edit/deletion, and completion/reopening remain
+  available. Section deletion confirms that
   completed tasks are also removed. Empty databases are not seeded with demo data.
 - Drag previews never reach storage. The destination's final drop calls core's
   atomic `place_task`, validating full destination membership before committing.
+  Column order is scoped to section and status. Done today uses `statusChangedAt`
+  and local calendar-day boundaries; older completed tasks remain stored and
+  available through the CLI. Hidden tasks are included in drag membership, and
+  the display refreshes its day boundary while open and on window focus.
   Stale orders caused by CLI edits fail safely and reload current data.
 - Data reloads after writes and when the window regains focus (except during a
   drag); external CLI edits are not streamed live while the app stays focused.
@@ -107,6 +114,21 @@ global `--json` emits arrays of core models, including `status` and
 `statusChangedAt` (UTC Unix milliseconds), without a separate `done` field,
 for both lists and mutations. Errors go to stderr, with exit code 1 for runtime
 errors and 2 for invalid command syntax (0 for success/help/version).
+
+### Resetting a development database
+
+Close the desktop app and any other database users, then run:
+
+```sh
+gasd clean --yes                       # Permanently remove the shared database file
+gasd --database ./test.sqlite3 clean --yes
+```
+
+This deletes the selected file without opening it, so it also works for outdated
+or invalid databases. It does not recreate the file immediately; the next normal
+command or desktop startup creates a fresh database and reapplies migrations.
+An absent file is a successful no-op. `--yes` is required to confirm data loss.
+`--json` returns `[{ "database": "...", "removed": true }]` (`false` if absent).
 
 ### Shared local storage
 

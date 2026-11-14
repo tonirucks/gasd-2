@@ -5,14 +5,14 @@ use crate::sqlite::{require_changed, validate_order};
 use crate::{Error, Result, SqliteRepository, Task, TaskList, TaskStatus, TaskUpdate};
 
 impl SqliteRepository {
-    /// Returns active tasks in section order, followed by the shared done list.
+    /// Returns tasks in section, status column, and task order.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
             "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at
              FROM tasks t JOIN sections s ON s.id = t.section_id
-             ORDER BY (t.status = 'done'),
-                      CASE WHEN t.status != 'done' THEN s.position ELSE 0 END,
-                      CASE WHEN t.status != 'done' THEN s.id ELSE 0 END,
+             ORDER BY s.position, s.id,
+                      CASE t.status WHEN 'open' THEN 0 WHEN 'inProgress' THEN 1
+                           WHEN 'waiting' THEN 2 ELSE 3 END,
                       t.position, t.id",
         )?;
         Ok(statement
@@ -29,7 +29,7 @@ impl SqliteRepository {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         find_section(&tx, section_id)?;
-        let position = next_task_position(&tx, section_id, false)?;
+        let position = next_task_position(&tx, section_id, TaskStatus::Open)?;
         tx.execute(
             "INSERT INTO tasks(title, section_id, position) VALUES (?1, ?2, ?3)",
             params![title, section_id, position],
@@ -46,10 +46,10 @@ impl SqliteRepository {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current = find_task(&tx, id)?;
         find_section(&tx, update.section_id)?;
-        let changed_list = current.status.is_done() != update.status.is_done()
-            || (!update.status.is_done() && current.section_id != update.section_id);
+        let changed_list =
+            current.status != update.status || current.section_id != update.section_id;
         let position = if changed_list {
-            next_task_position(&tx, update.section_id, update.status.is_done())?
+            next_task_position(&tx, update.section_id, update.status)?
         } else {
             current.position
         };
@@ -72,15 +72,14 @@ impl SqliteRepository {
         )
     }
 
-    /// Status changes within the active list preserve position. Crossing the
-    /// completion boundary appends to the destination list.
+    /// Status changes append to the destination column.
     pub fn set_task_status(&mut self, id: i64, status: TaskStatus) -> Result<Task> {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current = find_task(&tx, id)?;
-        let position = if current.status.is_done() != status.is_done() {
-            next_task_position(&tx, current.section_id, status.is_done())?
+        let position = if current.status != status {
+            next_task_position(&tx, current.section_id, status)?
         } else {
             current.position
         };
@@ -107,18 +106,12 @@ impl SqliteRepository {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let task = find_task(&tx, id)?;
-        let (section_id, done) = match list {
-            TaskList::Active { section_id } => {
-                find_section(&tx, section_id)?;
-                (section_id, false)
-            }
-            TaskList::Done => (task.section_id, true),
-        };
+        find_task(&tx, id)?;
+        find_section(&tx, list.section_id)?;
         // Membership validation below also rejects a destination omitting the moved task.
         tx.execute(
             "UPDATE tasks SET section_id = ?1, status = ?2 WHERE id = ?3",
-            params![section_id, completion_status(task.status, done), id],
+            params![list.section_id, list.status, id],
         )?;
         reorder_tasks(&tx, list, ids)?;
         tx.commit()?;
@@ -127,18 +120,10 @@ impl SqliteRepository {
 }
 
 fn reorder_tasks(connection: &Connection, list: TaskList, ids: &[i64]) -> Result<()> {
-    let (section_id, done) = match list {
-        TaskList::Active { section_id } => {
-            find_section(connection, section_id)?;
-            (section_id, false)
-        }
-        TaskList::Done => (0, true),
-    };
+    find_section(connection, list.section_id)?;
     let existing = connection
-        .prepare(
-            "SELECT id FROM tasks WHERE (status = 'done') = ?1 AND (?1 = 1 OR section_id = ?2)",
-        )?
-        .query_map(params![done, section_id], |row| row.get(0))?
+        .prepare("SELECT id FROM tasks WHERE status = ?1 AND section_id = ?2")?
+        .query_map(params![list.status, list.section_id], |row| row.get(0))?
         .collect::<rusqlite::Result<Vec<i64>>>()?;
     validate_order(&existing, ids)?;
     for (position, id) in ids.iter().enumerate() {
@@ -173,16 +158,6 @@ fn find_task(connection: &Connection, id: i64) -> Result<Task> {
         .ok_or(Error::NotFound { entity: "task", id })
 }
 
-fn completion_status(current: TaskStatus, done: bool) -> TaskStatus {
-    if done {
-        TaskStatus::Done
-    } else if current.is_done() {
-        TaskStatus::Open
-    } else {
-        current
-    }
-}
-
 impl rusqlite::types::ToSql for TaskStatus {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         Ok(match self {
@@ -207,11 +182,11 @@ impl rusqlite::types::FromSql for TaskStatus {
     }
 }
 
-fn next_task_position(connection: &Connection, section_id: i64, done: bool) -> Result<i64> {
+fn next_task_position(connection: &Connection, section_id: i64, status: TaskStatus) -> Result<i64> {
     Ok(connection.query_row(
         "SELECT coalesce(max(position), -1) + 1 FROM tasks
-         WHERE (status = 'done') = ?1 AND (?1 = 1 OR section_id = ?2)",
-        params![done, section_id],
+         WHERE status = ?1 AND section_id = ?2",
+        params![status, section_id],
         |row| row.get(0),
     )?)
 }

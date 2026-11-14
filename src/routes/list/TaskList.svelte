@@ -1,64 +1,61 @@
 <script lang="ts">
   import { flip } from "svelte/animate";
-  import { dragHandleZone, type DndEvent } from "svelte-dnd-action";
+  import { dragHandleZone, SOURCES, TRIGGERS, type DndEvent } from "svelte-dnd-action";
   import TaskRow from "./TaskRow.svelte";
   import type { Task } from "./types";
+  import type { TaskStatus } from "$lib/data/types";
+  import { getBoard } from "./context";
 
+  const board = getBoard();
   let {
     tasks,
     label,
-    flipDurationMs,
-    onreorder,
-    onplace,
-    ontoggle,
-    onremove,
-    onedit,
+    sectionId,
+    status,
   }: {
     tasks: Task[];
     label: string;
-    flipDurationMs: number;
-    onreorder: (tasks: Task[]) => void;
-    onplace: (tasks: Task[], id: number) => void;
-    ontoggle: (taskId: number) => void;
-    onremove: (taskId: number) => void;
-    onedit: (taskId: number, title: string) => Promise<boolean>;
+    sectionId: number;
+    status: TaskStatus;
   } = $props();
 
   function reorder(event: CustomEvent<DndEvent<Task>>): void {
-    onreorder(event.detail.items);
+    board.reorderTasks(event.detail.items, sectionId, status);
+  }
+
+  function save(event: CustomEvent<DndEvent<Task>>): void {
+    const id = Number(event.detail.info.id);
+    // Both source and destination finalize; only the destination saves the move.
+    if (event.detail.items.some((task) => task.id === id)) {
+      board.placeTask(event.detail.items, id, sectionId, status);
+    }
   }
 </script>
 
 <div
-  class="rounded-[5px] py-1"
+  class="min-h-24 space-y-2 rounded-md"
   use:dragHandleZone={{
     items: tasks,
     type: "tasks",
     useCursorForDetection: true,
-    flipDurationMs,
+    flipDurationMs: board.flipDurationMs,
     dropTargetStyle: {},
     delayTouchStart: true,
   }}
-  onconsider={reorder}
+  onconsider={(event) => {
+    reorder(event);
+    if (event.detail.info.trigger === TRIGGERS.DRAG_STOPPED) save(event);
+  }}
   onfinalize={(event) => {
     reorder(event);
-    const id = Number(event.detail.info.id);
-    // Both source and destination finalize; only the destination saves the move.
-    if (event.detail.items.some((task) => task.id === id)) {
-      onplace(event.detail.items, id);
-    }
+    // Keyboard arrows preview; persist once the user drops, not on each arrow.
+    if (event.detail.info.source === SOURCES.POINTER) save(event);
   }}
   aria-label={label}
 >
   {#each tasks as task (task.id)}
-    <!-- Include the gutter handle in each draggable item's hit area. -->
-    <div class="-ml-7 pl-7" aria-label={task.title} animate:flip={{ duration: flipDurationMs }}>
-      <TaskRow
-        {task}
-        {ontoggle}
-        {onremove}
-        {onedit}
-      />
+    <div aria-label={task.title} animate:flip={{ duration: board.flipDurationMs }}>
+      <TaskRow {task} />
     </div>
   {/each}
 </div>

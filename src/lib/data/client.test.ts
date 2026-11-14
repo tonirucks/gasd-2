@@ -18,8 +18,8 @@ describe("native client", () => {
     await listClient.sections.delete(1);
     await listClient.tasks.create(2, "Read");
     await listClient.tasks.update(3, { title: "Read more", sectionId: 2, status: "done" });
-    await listClient.tasks.reorder({ kind: "done" }, [3]);
-    await listClient.tasks.place(3, { kind: "active", sectionId: 2 }, [4, 3]);
+    await listClient.tasks.reorder({ sectionId: 2, status: "done" }, [3]);
+    await listClient.tasks.place(3, { sectionId: 2, status: "inProgress" }, [4, 3]);
     await listClient.tasks.delete(3);
     expect(vi.mocked(invoke).mock.calls).toEqual([
       ["list_get", undefined],
@@ -29,8 +29,8 @@ describe("native client", () => {
       ["sections_delete", { id: 1 }],
       ["tasks_create", { sectionId: 2, title: "Read" }],
       ["tasks_update", { id: 3, update: { title: "Read more", sectionId: 2, status: "done" } }],
-      ["tasks_reorder", { list: { kind: "done" }, ids: [3] }],
-      ["tasks_place", { id: 3, list: { kind: "active", sectionId: 2 }, ids: [4, 3] }],
+      ["tasks_reorder", { list: { sectionId: 2, status: "done" }, ids: [3] }],
+      ["tasks_place", { id: 3, list: { sectionId: 2, status: "inProgress" }, ids: [4, 3] }],
       ["tasks_delete", { id: 3 }],
     ]);
   });

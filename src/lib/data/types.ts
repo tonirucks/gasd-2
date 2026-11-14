@@ -10,6 +10,6 @@ export type Task = {
   position: number;
 };
 export type TaskUpdate = Pick<Task, "title" | "sectionId" | "status">;
-export type TaskList = { kind: "active"; sectionId: number } | { kind: "done" };
+export type TaskList = { sectionId: number; status: TaskStatus };
 export type ListData = { sections: Section[]; tasks: Task[] };
 export type CommandError = { code: string; message: string };

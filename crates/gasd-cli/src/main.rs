@@ -1,4 +1,9 @@
-use std::{error::Error, path::PathBuf, process::ExitCode};
+use std::{
+    error::Error,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 use clap::{Args, Parser, Subcommand};
 use gasd_core::{Section, Task, TaskStatus, TaskUpdate};
@@ -23,6 +28,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Remove the database file (all data is lost). Close the desktop app first.
+    Clean {
+        /// Confirm permanent deletion without an interactive prompt
+        #[arg(long, required = true)]
+        yes: bool,
+    },
     /// Create a task or section
     Add {
         #[command(subcommand)]
@@ -145,13 +156,55 @@ fn sections(rows: &[Section], json: bool) -> Result<(), Box<dyn Error>> {
     })
 }
 
+fn clean(path: &Path, json: bool) -> Result<(), Box<dyn Error>> {
+    if path.as_os_str().is_empty() {
+        return Err(gasd_core::storage::Error::EmptyPath.into());
+    }
+    let removed = match std::fs::remove_file(path) {
+        Ok(()) => true,
+        Err(error) if error.kind() == ErrorKind::NotFound => false,
+        Err(error) => {
+            return Err(format!(
+                "could not remove database {}: {error}",
+                text(&path.display().to_string())
+            )
+            .into());
+        }
+    };
+    #[derive(Serialize)]
+    struct CleanResult<'a> {
+        database: &'a Path,
+        removed: bool,
+    }
+    print_rows(
+        &[CleanResult {
+            database: path,
+            removed,
+        }],
+        json,
+        "DATABASE\tREMOVED",
+        |result| {
+            format!(
+                "{}\t{}",
+                text(&result.database.display().to_string()),
+                result.removed
+            )
+        },
+    )
+}
+
 fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
     let path = match cli.database {
         Some(path) => path,
         None => gasd_core::storage::database_path()?,
     };
+    // Cleaning must work even when an old or corrupt schema cannot be opened.
+    if matches!(&cli.command, Command::Clean { .. }) {
+        return clean(&path, cli.json);
+    }
     let mut service = gasd_core::storage::open(path)?;
     match cli.command {
+        Command::Clean { .. } => unreachable!("clean is handled before opening the database"),
         Command::Add {
             item: Add::Task { title, section },
         } => tasks(&[service.create_task(section, &title)?], cli.json),

@@ -42,7 +42,7 @@ describe("list store", () => {
     client.tasks.place.mockRejectedValueOnce({ code: "invalidOrder", message: "Stale order" });
     const changed = { ...data, tasks: [] };
     client.get.mockResolvedValueOnce(changed);
-    expect(await store.placeTask(2, { kind: "done" }, [2])).toBe(false);
+    expect(await store.placeTask(2, { sectionId: 1, status: "done" }, [2])).toBe(false);
     expect(get(store)).toMatchObject({ data: changed, error: "Stale order", busy: false });
   });
 

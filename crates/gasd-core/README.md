@@ -62,13 +62,13 @@ app.update_task(task.id, TaskUpdate {
 
 - IDs are database-generated and not reused. `position` is zero-based but may
   contain gaps after deletion/moves; callers must not assume contiguous values.
-- Sections and active tasks append to their respective lists. Completed tasks
-  retain their section but share one globally ordered done list, matching the UI.
+- Sections append to the section list. Tasks are ordered independently within
+  each section/status column, including completed tasks.
 - Tasks have a `TaskStatus`: `Open`, `InProgress`, `Waiting`, or `Done`, serialized
   as `open`, `inProgress`, `waiting`, and `done`. New tasks start open. Use
   `set_task_status` to change status without changing title or section. All
-  non-done statuses share the section's active list; switching among them keeps
-  position. Completing/reopening appends to the destination list.
+  status changes append to the destination column; repeating the same status
+  preserves position.
 - `Task.status_changed_at` (JSON `statusChangedAt`) is a UTC Unix timestamp in
   milliseconds. It starts at task creation and changes only on actual status
   transitions, including changes through `update_task` or
@@ -76,14 +76,17 @@ app.update_task(task.id, TaskUpdate {
   status preserves it. Tracking uses the database clock; transitions within the
   same millisecond can share a timestamp.
 - `TaskUpdate` replaces title, section, and status atomically. There is no separate
-  completion flag. `place_task` preserves active statuses when moving between
-  sections, sets status to done when moving to the done list, and sets status to
-  open when reopening into an active list.
+  completion flag. `TaskList { section_id, status }` identifies the complete
+  destination column for `place_task` and `reorder_tasks`. Placement sets both
+  section and status atomically with destination ordering.
 - Moving or completing/reopening appends to the destination list; edits within a list
   preserve position. Reordering takes the complete list of IDs exactly once.
 - Reordering is atomic; missing, foreign, duplicate, or stale membership is
   rejected without writing. This does not detect concurrent order-only changes;
-  the last valid reorder wins. Moving and then reordering are separate operations.
+  the last valid reorder wins. Use `place_task` to move and reorder atomically.
+- The desktop shows only tasks completed during the user's current local day in
+  each done column. Core and CLI retain all completed tasks. Filtered UI orders
+  must include hidden tasks when calling core's complete-column ordering API.
 - **Deleting a section also deletes all its tasks, including completed ones.**
   A future adapter should confirm destructive actions as appropriate.
 - SQLite enforces foreign keys, cascading deletes, and basic field constraints.
