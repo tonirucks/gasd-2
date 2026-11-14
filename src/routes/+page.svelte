@@ -32,9 +32,9 @@
 
   const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
   let flipDurationMs = $derived(reducedMotion.current ? 0 : 140);
-  let doneTasks = $derived(tasks.filter((task) => task.done));
+  let doneTasks = $derived(tasks.filter((task) => task.status === "done"));
   let remaining = $derived(
-    tasks.filter((task) => !task.done && !task.isDndShadowItem).length,
+    tasks.filter((task) => task.status !== "done" && !task.isDndShadowItem).length,
   );
 
   function reorderSections(event: CustomEvent<DndEvent<Section>>): void {
@@ -57,15 +57,16 @@
       ...tasks.filter((task) => {
         const belongsToZone =
           sectionId === null
-            ? task.done
-            : !task.done && task.sectionId === sectionId;
+            ? task.status === "done"
+            : task.status !== "done" && task.sectionId === sectionId;
         return !belongsToZone && !incomingIds.has(task.id);
       }),
-      ...incoming.map((task) => ({
-        ...task,
-        sectionId: sectionId ?? task.sectionId,
-        done: sectionId === null,
-      })),
+      ...incoming.map((task): Task => {
+        let status = task.status;
+        if (sectionId === null) status = "done";
+        else if (status === "done") status = "open";
+        return { ...task, sectionId: sectionId ?? task.sectionId, status };
+      }),
     ];
   }
 
@@ -82,13 +83,13 @@
 
   function toggleTask(taskId: number): void {
     const task = $list.data.tasks.find((task) => task.id === taskId);
-    if (task) void list.updateTask(task.id, { title: task.title, sectionId: task.sectionId, done: !task.done });
+    if (task) void list.updateTask(task.id, { title: task.title, sectionId: task.sectionId, status: task.status === "done" ? "open" : "done" });
   }
 
   function editTask(taskId: number, title: string): Promise<boolean> {
     const task = $list.data.tasks.find((task) => task.id === taskId);
     if (!task) return Promise.resolve(false);
-    return list.updateTask(task.id, { title, sectionId: task.sectionId, done: task.done });
+    return list.updateTask(task.id, { title, sectionId: task.sectionId, status: task.status });
   }
 
   async function addSection(name: string): Promise<void> {
@@ -159,7 +160,7 @@
               <TaskSection
                 {section}
                 {sections}
-                tasks={tasks.filter((task) => task.sectionId === section.id && !task.done)}
+                tasks={tasks.filter((task) => task.sectionId === section.id && task.status !== "done")}
                 adding={addingTo === section.id}
                 editing={editingSection === section.id}
                 {flipDurationMs}

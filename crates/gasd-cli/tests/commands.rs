@@ -34,17 +34,19 @@ fn command_workflow_persists_and_preserves_unspecified_fields() {
     json(&db, &["add", "section", "Work"]);
     let task = json(&db, &["add", "task", "Read", "--section", "1"]);
     assert_eq!(task[0]["title"], "Read");
-    assert_eq!(task[0]["done"], false);
-    let task = json(&db, &["update", "task", "1", "--done"]);
-    assert_eq!(task[0]["done"], true);
+    assert_eq!(task[0]["status"], "open");
+    assert!(task[0].get("done").is_none());
+    assert!(task[0]["statusChangedAt"].as_i64().unwrap() > 0);
+    let task = json(&db, &["update", "task", "1", "--status", "done"]);
+    assert_eq!(task[0]["status"], "done");
     assert_eq!(task[0]["title"], "Read");
     assert_eq!(task[0]["sectionId"], 1);
     assert_eq!(
-        json(&db, &["list", "tasks", "--active"]),
+        json(&db, &["list", "tasks", "--status", "open"]),
         serde_json::json!([])
     );
     assert_eq!(
-        json(&db, &["list", "tasks", "--done"])
+        json(&db, &["list", "tasks", "--status", "done"])
             .as_array()
             .unwrap()
             .len(),
@@ -56,22 +58,62 @@ fn command_workflow_persists_and_preserves_unspecified_fields() {
             "update",
             "task",
             "1",
-            "--active",
+            "--status",
+            "inProgress",
             "--title",
             "Write",
             "--section",
             "2",
         ],
     );
-    assert_eq!(task[0]["done"], false);
+    assert_eq!(task[0]["status"], "inProgress");
     assert_eq!(task[0]["title"], "Write");
     assert_eq!(task[0]["sectionId"], 2);
+    let timestamp = task[0]["statusChangedAt"].clone();
+    let edited = json(&db, &["update", "task", "1", "--title", "Write more"]);
+    assert_eq!(edited[0]["status"], "inProgress");
+    assert_eq!(edited[0]["statusChangedAt"], timestamp);
+    for status in ["open", "inProgress", "waiting", "done"] {
+        let updated = json(&db, &["update", "task", "1", "--status", status]);
+        assert_eq!(updated[0]["status"], status);
+        let filtered = json(
+            &db,
+            &["list", "tasks", "--status", status, "--section", "2"],
+        );
+        assert_eq!(filtered, updated);
+        assert_eq!(
+            json(
+                &db,
+                &["list", "tasks", "--status", status, "--section", "1"]
+            ),
+            serde_json::json!([])
+        );
+    }
     assert_eq!(
         json(&db, &["list", "tasks", "--section", "1"]),
         serde_json::json!([])
     );
     json(&db, &["update", "section", "2", "--name", "Office"]);
     assert_eq!(json(&db, &["list", "sections"])[1]["name"], "Office");
+}
+
+#[test]
+fn status_filters_select_exact_matches_without_changing_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("db.sqlite3");
+    json(&db, &["add", "section", "Work"]);
+    for (index, status) in ["open", "inProgress", "waiting", "done"].iter().enumerate() {
+        let id = (index + 1).to_string();
+        json(&db, &["add", "task", status, "--section", "1"]);
+        json(&db, &["update", "task", &id, "--status", status]);
+    }
+    assert_eq!(json(&db, &["list"]).as_array().unwrap().len(), 4);
+    for (index, status) in ["open", "inProgress", "waiting", "done"].iter().enumerate() {
+        let rows = json(&db, &["list", "tasks", "--status", status]);
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert_eq!(rows[0]["id"], index + 1);
+        assert_eq!(rows[0]["status"], *status);
+    }
 }
 
 #[test]
@@ -83,12 +125,28 @@ fn invalid_commands_fail_without_changes() {
     for args in [
         vec!["update", "task", "1"],
         vec!["update", "task", "1", "--done", "--active"],
-        vec!["update", "task", "999", "--done"],
+        vec!["update", "task", "999", "--status", "done"],
+        vec!["update", "task", "1", "--status", "invalid"],
+        vec!["update", "task", "1", "--status", "in-progress"],
+        vec![
+            "update",
+            "task",
+            "1",
+            "--status",
+            "waiting",
+            "--title",
+            "Changed",
+            "--section",
+            "999",
+        ],
         vec!["update", "task", "1", "--title", " "],
         vec!["update", "task", "1", "--section", "999"],
         vec!["add", "section", " "],
         vec!["add", "task", "Missing section"],
         vec!["list", "tasks", "--done", "--active"],
+        vec!["list", "tasks", "--status", "invalid"],
+        vec!["list", "tasks", "--active"],
+        vec!["update", "task", "1", "--done"],
         vec!["list", "tasks", "--section", "999"],
     ] {
         let output = invoke(&db, &args);
@@ -98,7 +156,7 @@ fn invalid_commands_fail_without_changes() {
     }
     let task = json(&db, &["list"]);
     assert_eq!(task[0]["title"], "Read");
-    assert_eq!(task[0]["done"], false);
+    assert_eq!(task[0]["status"], "open");
     assert_eq!(task[0]["sectionId"], 1);
 }
 
@@ -130,13 +188,22 @@ fn explicit_path_overrides_shared_environment_and_help_does_not_open_database() 
 }
 
 #[test]
-fn human_output_contains_ids_and_state() {
+fn human_output_contains_ids_and_status() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("db.sqlite3");
     json(&db, &["add", "section", "Personal"]);
     let output = invoke(&db, &["add", "task", "Read\nnow", "--section", "1"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("ID\tSECTION\tSTATE\tTITLE"));
-    assert!(stdout.contains("1\t1\tactive\tRead\\nnow"));
+    assert!(stdout.contains("ID\tSECTION\tSTATUS\tTITLE"));
+    assert!(stdout.contains("1\t1\topen\tRead\\nnow"));
+    for status in ["inProgress", "waiting", "done"] {
+        let output = invoke(&db, &["update", "task", "1", "--status", status]);
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .contains(&format!("1\t1\t{status}\tRead\\nnow"))
+        );
+    }
 }

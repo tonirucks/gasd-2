@@ -52,7 +52,7 @@ app.set_task_status(task.id, TaskStatus::InProgress)?;
 app.update_task(task.id, TaskUpdate {
     title: task.title,
     section_id: section.id,
-    done: true,
+    status: TaskStatus::Done,
 })?;
 # Ok(())
 # }
@@ -71,17 +71,15 @@ app.update_task(task.id, TaskUpdate {
   position. Completing/reopening appends to the destination list.
 - `Task.status_changed_at` (JSON `statusChangedAt`) is a UTC Unix timestamp in
   milliseconds. It starts at task creation and changes only on actual status
-  transitions, including completion changes through the compatibility API or
+  transitions, including changes through `update_task` or
   `place_task`. Repeating a status, editing, moving, or reordering without changing
   status preserves it. Tracking uses the database clock; transitions within the
   same millisecond can share a timestamp.
-- `Task.done` remains a compatibility projection of the status. `TaskUpdate`
-  still replaces title, section, and completion state: keeping `done: false`
-  preserves an existing active status, and reopening a done task sets it to open.
-  `place_task` follows the same rules. CLI and desktop status controls are not
-  introduced by this core API.
-- Moving or
-  completing/reopening appends to the destination list; edits within a list
+- `TaskUpdate` replaces title, section, and status atomically. There is no separate
+  completion flag. `place_task` preserves active statuses when moving between
+  sections, sets status to done when moving to the done list, and sets status to
+  open when reopening into an active list.
+- Moving or completing/reopening appends to the destination list; edits within a list
   preserve position. Reordering takes the complete list of IDs exactly once.
 - Reordering is atomic; missing, foreign, duplicate, or stale membership is
   rejected without writing. This does not detect concurrent order-only changes;
@@ -93,9 +91,9 @@ app.update_task(task.id, TaskUpdate {
   each connection waits up to five seconds for locks before returning a storage
   error. Desktop and CLI can open separate connections to the same local file.
 - Opening a database applies migrations transactionally using `user_version`.
-   The initial schema (version 1) includes task status and status timestamps.
-   During this early development stage, databases created with earlier schema
-   definitions must be reset; there is no upgrade path for them.
+  The initial schema (version 1) includes task status and status timestamps.
+  During this early development stage, databases created with earlier schema
+  definitions must be reset; there is no upgrade path for them.
   Unknown newer schema versions are rejected. Add sequential migrations when
   evolving the schema; do not edit an already-released migration.
 - Adapters select a shared database path, create its parent directory, and map
@@ -104,7 +102,7 @@ app.update_task(task.id, TaskUpdate {
   that database at startup. No default sections are seeded.
 - Calls are synchronous. A future async Tauri adapter should use a blocking worker
   and serialize access to its service/connection rather than blocking the UI thread.
-  Prefer explicit desired completion state over a read-then-toggle operation.
+  Prefer explicit desired status over a read-then-toggle operation.
 
 ## Checks
 

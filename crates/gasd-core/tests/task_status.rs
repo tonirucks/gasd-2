@@ -39,7 +39,6 @@ fn all_status_transitions_preserve_fields_and_use_the_correct_list() {
             let before = app.set_task_status(task.id, source).unwrap();
             let after = app.set_task_status(task.id, destination).unwrap();
             assert_eq!(after.status, destination);
-            assert_eq!(after.done, destination.is_done());
             assert_eq!(after.title, task.title);
             assert_eq!(after.section_id, task.section_id);
             if source.is_done() == destination.is_done() {
@@ -60,7 +59,7 @@ fn all_status_transitions_preserve_fields_and_use_the_correct_list() {
 }
 
 #[test]
-fn legacy_updates_and_placement_preserve_active_statuses() {
+fn updates_and_placement_preserve_active_statuses() {
     let mut app = Service::new(SqliteRepository::in_memory().unwrap());
     let a = app.create_section("A").unwrap();
     let b = app.create_section("B").unwrap();
@@ -73,7 +72,7 @@ fn legacy_updates_and_placement_preserve_active_statuses() {
                 TaskUpdate {
                     title: "Edited".into(),
                     section_id: a.id,
-                    done: false,
+                    status,
                 },
             )
             .unwrap();
@@ -95,7 +94,7 @@ fn legacy_updates_and_placement_preserve_active_statuses() {
                 TaskUpdate {
                     title: task.title.clone(),
                     section_id: a.id,
-                    done: false,
+                    status: TaskStatus::Open,
                 },
             )
             .unwrap();
@@ -104,7 +103,7 @@ fn legacy_updates_and_placement_preserve_active_statuses() {
 }
 
 #[test]
-fn initial_schema_persists_statuses_and_enforces_consistency() {
+fn initial_schema_persists_statuses_and_rejects_invalid_statuses() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("tasks.sqlite3");
     let connection = Connection::open(&path).unwrap();
@@ -114,8 +113,8 @@ fn initial_schema_persists_statuses_and_enforces_consistency() {
     connection
         .execute_batch(
             "INSERT INTO sections(id, name, position) VALUES (7, 'Work', 3);
-         INSERT INTO tasks(id, title, section_id, done, position, status) VALUES
-             (10, 'Active', 7, 0, 5, 'open'), (11, 'Completed', 7, 1, 2, 'done');
+         INSERT INTO tasks(id, title, section_id, position, status) VALUES
+             (10, 'Active', 7, 5, 'open'), (11, 'Completed', 7, 2, 'done');
          PRAGMA user_version = 1;",
         )
         .unwrap();
@@ -140,9 +139,7 @@ fn initial_schema_persists_statuses_and_enforces_consistency() {
     assert_eq!(version, 1);
     for sql in [
         "UPDATE tasks SET status = 'invalid' WHERE id = 10",
-        "UPDATE tasks SET status = 'done' WHERE id = 10",
-        "UPDATE tasks SET done = 1 WHERE id = 10",
-        "INSERT INTO tasks(title, section_id, done, position) VALUES ('Invalid', 7, 1, 0)",
+        "INSERT INTO tasks(title, section_id, status, position) VALUES ('Invalid', 7, 'invalid', 0)",
     ] {
         assert!(connection.execute(sql, []).is_err());
     }

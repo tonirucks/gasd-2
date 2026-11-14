@@ -87,18 +87,24 @@ gasd add section "Personal"             # Prints the generated section ID
 gasd add task "Read a chapter" --section 1
 gasd list                              # All tasks, including completed tasks
 gasd list sections
-gasd list tasks --section 1 --active
-gasd update task 1 --done
-gasd update task 1 --active             # Reopen, not toggle
+gasd list tasks --section 1 --status open
+gasd update task 1 --status inProgress
+gasd update task 1 --status waiting
+gasd update task 1 --status done
+gasd update task 1 --status open        # Reopen, not toggle
 gasd update task 1 --title "Read two chapters" --section 1
 gasd update section 1 --name "Home"
-gasd list tasks --done --json
+gasd list tasks --status done --json
 ```
 
 Use IDs printed by the commands; the examples assume a fresh database. No default
-sections are created. Task updates preserve fields not supplied. `--done` and
-`--active` are mutually exclusive, and updates require at least one change.
-Human-readable output includes IDs; global `--json` emits arrays of core models
+sections are created. New tasks start with status `open`. Task updates preserve
+fields not supplied and require at least one change. `--status` accepts exactly
+`open`, `inProgress`, `waiting`, or `done` for updates and list filtering, and can
+be combined with title/section edits atomically. The old `--done` and `--active`
+flags are not supported. Human-readable output includes IDs and the actual status;
+global `--json` emits arrays of core models, including `status` and
+`statusChangedAt` (UTC Unix milliseconds), without a separate `done` field,
 for both lists and mutations. Errors go to stderr, with exit code 1 for runtime
 errors and 2 for invalid command syntax (0 for success/help/version).
 

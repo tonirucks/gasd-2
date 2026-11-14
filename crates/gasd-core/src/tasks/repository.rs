@@ -8,11 +8,11 @@ impl SqliteRepository {
     /// Returns active tasks in section order, followed by the shared done list.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.done, t.position, t.status, t.status_changed_at
+            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at
              FROM tasks t JOIN sections s ON s.id = t.section_id
-             ORDER BY t.done,
-                      CASE WHEN t.done = 0 THEN s.position ELSE 0 END,
-                      CASE WHEN t.done = 0 THEN s.id ELSE 0 END,
+             ORDER BY (t.status = 'done'),
+                      CASE WHEN t.status != 'done' THEN s.position ELSE 0 END,
+                      CASE WHEN t.status != 'done' THEN s.id ELSE 0 END,
                       t.position, t.id",
         )?;
         Ok(statement
@@ -46,25 +46,17 @@ impl SqliteRepository {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current = find_task(&tx, id)?;
         find_section(&tx, update.section_id)?;
-        let status = completion_status(current.status, update.done);
-        let changed_list = current.done != update.done
-            || (!update.done && current.section_id != update.section_id);
+        let changed_list = current.status.is_done() != update.status.is_done()
+            || (!update.status.is_done() && current.section_id != update.section_id);
         let position = if changed_list {
-            next_task_position(&tx, update.section_id, update.done)?
+            next_task_position(&tx, update.section_id, update.status.is_done())?
         } else {
             current.position
         };
         tx.execute(
-            "UPDATE tasks SET title = ?1, section_id = ?2, done = ?3, position = ?4,
-             status = ?6 WHERE id = ?5",
-            params![
-                update.title,
-                update.section_id,
-                update.done,
-                position,
-                id,
-                status
-            ],
+            "UPDATE tasks SET title = ?1, section_id = ?2, status = ?3, position = ?4
+             WHERE id = ?5",
+            params![update.title, update.section_id, update.status, position, id],
         )?;
         let task = find_task(&tx, id)?;
         tx.commit()?;
@@ -87,14 +79,14 @@ impl SqliteRepository {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current = find_task(&tx, id)?;
-        let position = if current.done != status.is_done() {
+        let position = if current.status.is_done() != status.is_done() {
             next_task_position(&tx, current.section_id, status.is_done())?
         } else {
             current.position
         };
         tx.execute(
-            "UPDATE tasks SET status = ?1, done = ?2, position = ?3 WHERE id = ?4",
-            params![status, status.is_done(), position, id],
+            "UPDATE tasks SET status = ?1, position = ?2 WHERE id = ?3",
+            params![status, position, id],
         )?;
         let task = find_task(&tx, id)?;
         tx.commit()?;
@@ -125,8 +117,8 @@ impl SqliteRepository {
         };
         // Membership validation below also rejects a destination omitting the moved task.
         tx.execute(
-            "UPDATE tasks SET section_id = ?1, done = ?2, status = ?4 WHERE id = ?3",
-            params![section_id, done, id, completion_status(task.status, done)],
+            "UPDATE tasks SET section_id = ?1, status = ?2 WHERE id = ?3",
+            params![section_id, completion_status(task.status, done), id],
         )?;
         reorder_tasks(&tx, list, ids)?;
         tx.commit()?;
@@ -143,7 +135,9 @@ fn reorder_tasks(connection: &Connection, list: TaskList, ids: &[i64]) -> Result
         TaskList::Done => (0, true),
     };
     let existing = connection
-        .prepare("SELECT id FROM tasks WHERE done = ?1 AND (?1 = 1 OR section_id = ?2)")?
+        .prepare(
+            "SELECT id FROM tasks WHERE (status = 'done') = ?1 AND (?1 = 1 OR section_id = ?2)",
+        )?
         .query_map(params![done, section_id], |row| row.get(0))?
         .collect::<rusqlite::Result<Vec<i64>>>()?;
     validate_order(&existing, ids)?;
@@ -161,17 +155,16 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         id: row.get(0)?,
         title: row.get(1)?,
         section_id: row.get(2)?,
-        done: row.get(3)?,
-        position: row.get(4)?,
-        status: row.get(5)?,
-        status_changed_at: row.get(6)?,
+        position: row.get(3)?,
+        status: row.get(4)?,
+        status_changed_at: row.get(5)?,
     })
 }
 
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
     connection
         .query_row(
-            "SELECT id, title, section_id, done, position, status, status_changed_at
+            "SELECT id, title, section_id, position, status, status_changed_at
              FROM tasks WHERE id = ?1",
             [id],
             task_row,
@@ -217,7 +210,7 @@ impl rusqlite::types::FromSql for TaskStatus {
 fn next_task_position(connection: &Connection, section_id: i64, done: bool) -> Result<i64> {
     Ok(connection.query_row(
         "SELECT coalesce(max(position), -1) + 1 FROM tasks
-         WHERE done = ?1 AND (?1 = 1 OR section_id = ?2)",
+         WHERE (status = 'done') = ?1 AND (?1 = 1 OR section_id = ?2)",
         params![done, section_id],
         |row| row.get(0),
     )?)

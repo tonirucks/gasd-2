@@ -55,7 +55,7 @@ fn creation_and_every_status_transition_track_time() {
 }
 
 #[test]
-fn legacy_updates_placement_and_rollback_handle_timestamps() {
+fn updates_placement_and_rollback_handle_timestamps() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("tasks.sqlite3");
     let mut app = Service::new(SqliteRepository::open(&path).unwrap());
@@ -72,7 +72,7 @@ fn legacy_updates_placement_and_rollback_handle_timestamps() {
             TaskUpdate {
                 title: "Edited".into(),
                 section_id: b.id,
-                done: false,
+                status: TaskStatus::Waiting,
             },
         )
         .unwrap();
@@ -87,7 +87,12 @@ fn legacy_updates_placement_and_rollback_handle_timestamps() {
     ));
     assert_eq!(app.get_task(task.id).unwrap().status_changed_at, 1);
 
-    for done in [true, false] {
+    for status in [
+        TaskStatus::InProgress,
+        TaskStatus::Waiting,
+        TaskStatus::Done,
+        TaskStatus::Open,
+    ] {
         reset_timestamp(&connection, task.id);
         let changed = app
             .update_task(
@@ -95,7 +100,7 @@ fn legacy_updates_placement_and_rollback_handle_timestamps() {
                 TaskUpdate {
                     title: "Edited".into(),
                     section_id: a.id,
-                    done,
+                    status,
                 },
             )
             .unwrap();
@@ -123,8 +128,8 @@ fn initial_schema_sets_timestamps_and_reopening_preserves_them() {
     connection
         .execute_batch(
             "INSERT INTO sections(id, name, position) VALUES (7, 'Work', 3);
-         INSERT INTO tasks(id, title, section_id, done, position, status) VALUES
-             (10, 'Review', 7, 0, 5, 'waiting'), (11, 'Completed', 7, 1, 2, 'done');
+         INSERT INTO tasks(id, title, section_id, position, status) VALUES
+             (10, 'Review', 7, 5, 'waiting'), (11, 'Completed', 7, 2, 'done');
          PRAGMA user_version = 1;",
         )
         .unwrap();

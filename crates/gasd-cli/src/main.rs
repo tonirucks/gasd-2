@@ -1,7 +1,7 @@
 use std::{error::Error, path::PathBuf, process::ExitCode};
 
 use clap::{Args, Parser, Subcommand};
-use gasd_core::{Section, Task, TaskUpdate};
+use gasd_core::{Section, Task, TaskStatus, TaskUpdate};
 use serde::Serialize;
 
 #[derive(Parser)]
@@ -57,12 +57,9 @@ enum List {
     Tasks {
         #[arg(long)]
         section: Option<i64>,
-        /// Only completed tasks
-        #[arg(long, conflicts_with = "active")]
-        done: bool,
-        /// Only incomplete tasks
-        #[arg(long)]
-        active: bool,
+        /// Filter by status: open, inProgress, waiting, done
+        #[arg(long, value_parser = parse_status)]
+        status: Option<TaskStatus>,
     },
     Sections,
 }
@@ -78,19 +75,26 @@ enum Update {
 }
 
 #[derive(Args)]
-#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["title", "section", "done", "active"])))]
+#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["title", "section", "status"])))]
 struct TaskEdit {
     id: i64,
     #[arg(long)]
     title: Option<String>,
     #[arg(long)]
     section: Option<i64>,
-    /// Mark complete (not a toggle)
-    #[arg(long, conflicts_with = "active")]
-    done: bool,
-    /// Reopen the task
-    #[arg(long)]
-    active: bool,
+    /// Set status: open, inProgress, waiting, done
+    #[arg(long, value_parser = parse_status)]
+    status: Option<TaskStatus>,
+}
+
+fn parse_status(value: &str) -> Result<TaskStatus, String> {
+    match value {
+        "open" => Ok(TaskStatus::Open),
+        "inProgress" => Ok(TaskStatus::InProgress),
+        "waiting" => Ok(TaskStatus::Waiting),
+        "done" => Ok(TaskStatus::Done),
+        _ => Err("expected open, inProgress, waiting, or done".into()),
+    }
 }
 
 fn print_rows<T: Serialize>(
@@ -119,12 +123,17 @@ fn text(value: &str) -> String {
 }
 
 fn tasks(rows: &[Task], json: bool) -> Result<(), Box<dyn Error>> {
-    print_rows(rows, json, "ID\tSECTION\tSTATE\tTITLE", |task| {
+    print_rows(rows, json, "ID\tSECTION\tSTATUS\tTITLE", |task| {
         format!(
             "{}\t{}\t{}\t{}",
             task.id,
             task.section_id,
-            if task.done { "done" } else { "active" },
+            match task.status {
+                TaskStatus::Open => "open",
+                TaskStatus::InProgress => "inProgress",
+                TaskStatus::Waiting => "waiting",
+                TaskStatus::Done => "done",
+            },
             text(&task.title)
         )
     })
@@ -154,19 +163,13 @@ fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         } => sections(&service.get_sections()?, cli.json),
         Command::List { item } => {
             let mut rows = service.get_tasks()?;
-            if let Some(List::Tasks {
-                section,
-                done,
-                active,
-            }) = item
-            {
+            if let Some(List::Tasks { section, status }) = item {
                 if let Some(id) = section {
                     service.get_section(id)?;
                 }
                 rows.retain(|task| {
                     section.is_none_or(|id| task.section_id == id)
-                        && (!done || task.done)
-                        && (!active || !task.done)
+                        && status.is_none_or(|status| task.status == status)
                 });
             }
             tasks(&rows, cli.json)
@@ -183,13 +186,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 TaskUpdate {
                     title: edit.title.unwrap_or(old.title),
                     section_id: edit.section.unwrap_or(old.section_id),
-                    done: if edit.done {
-                        true
-                    } else if edit.active {
-                        false
-                    } else {
-                        old.done
-                    },
+                    status: edit.status.unwrap_or(old.status),
                 },
             )?;
             tasks(&[updated], cli.json)

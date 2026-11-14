@@ -32,11 +32,11 @@
     ><GripVertical size={15} /></span
   >
   <button
-    class={["grid size-4.25 shrink-0 place-items-center rounded-[5px] border-[1.5px] p-0 hover:border-mauve hover:bg-surface", task.done ? "border-surface bg-surface text-green" : "border-surface-hover"]}
-    aria-label={`${task.done ? "Reopen" : "Complete"} ${task.title}`}
-    aria-pressed={task.done}
+    class={["grid size-4.25 shrink-0 place-items-center rounded-[5px] border-[1.5px] p-0 hover:border-mauve hover:bg-surface", task.status === "done" ? "border-surface bg-surface text-green" : "border-surface-hover"]}
+    aria-label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}
+    aria-pressed={task.status === "done"}
     onclick={() => ontoggle(task.id)}
-    >{#if task.done}<Check size={13} strokeWidth={2.5} />{/if}</button
+    >{#if task.status === "done"}<Check size={13} strokeWidth={2.5} />{/if}</button
   >
   {#if editing}
     <InlineForm
@@ -49,13 +49,13 @@
       oncancel={() => (editing = false)}
     />
   {:else}
-    <span class={["min-w-0 flex-1 text-[13px] leading-[1.6] wrap-anywhere", task.done && "text-muted line-through"]}>{task.title}</span>
+    <span class={["min-w-0 flex-1 text-[13px] leading-[1.6] wrap-anywhere", task.status === "done" && "text-muted line-through"]}>{task.title}</span>
     <button
       class="inline-flex shrink-0 rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface focus-visible:opacity-100 max-[580px]:opacity-100"
       aria-label={`Edit ${task.title}`}
       onclick={() => { title = task.title; editing = true; }}><Pencil size={12} /></button>
   {/if}
-  {#if task.done}<span class="text-[10px] text-muted max-[580px]:max-w-16.25 max-[580px]:wrap-anywhere">{sectionName}</span>{/if}
+  {#if task.status === "done"}<span class="text-[10px] text-muted max-[580px]:max-w-16.25 max-[580px]:wrap-anywhere">{sectionName}</span>{/if}
   <button
     class="inline-flex shrink-0 items-center justify-center rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface hover:text-text focus-visible:opacity-100 max-[580px]:opacity-100"
     aria-label={`Remove ${task.title}`}

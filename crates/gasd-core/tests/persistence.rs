@@ -1,4 +1,4 @@
-use gasd_core::{Error, Service, SqliteRepository, Task, TaskList, TaskUpdate};
+use gasd_core::{Error, Service, SqliteRepository, Task, TaskList, TaskStatus, TaskUpdate};
 use rusqlite::Connection;
 
 fn service() -> Service {
@@ -9,7 +9,11 @@ fn update(task: &Task, section_id: i64, done: bool) -> TaskUpdate {
     TaskUpdate {
         title: task.title.clone(),
         section_id,
-        done,
+        status: if done {
+            TaskStatus::Done
+        } else {
+            TaskStatus::Open
+        },
     }
 }
 
@@ -36,13 +40,13 @@ fn section_and_task_crud() {
 
     let task = app.create_task(section.id, "  Read a book  ").unwrap();
     assert_eq!(task.title, "Read a book");
-    assert!(!task.done);
+    assert_eq!(task.status, TaskStatus::Open);
     assert_eq!(app.get_task(task.id).unwrap(), task);
     let mut changes = update(&task, section.id, true);
     changes.title = "  Read two books  ".into();
     let edited = app.update_task(task.id, changes).unwrap();
     assert_eq!(edited.title, "Read two books");
-    assert!(edited.done);
+    assert_eq!(edited.status, TaskStatus::Done);
 
     app.delete_task(task.id).unwrap();
     assert!(app.get_tasks().unwrap().is_empty());
@@ -113,7 +117,7 @@ fn missing_entities_return_typed_errors() {
     let changes = TaskUpdate {
         title: "Missing".into(),
         section_id: 99,
-        done: false,
+        status: TaskStatus::Open,
     };
     assert!(matches!(
         app.update_task(99, changes),
@@ -133,7 +137,7 @@ fn invalid_move_rolls_back_all_task_changes() {
     let changes = TaskUpdate {
         title: "Changed".into(),
         section_id: 99,
-        done: true,
+        status: TaskStatus::Done,
     };
     assert!(matches!(
         app.update_task(task.id, changes),
@@ -317,7 +321,7 @@ fn schema_constraints_protect_against_invalid_direct_writes() {
     assert!(
         connection
             .execute(
-                "INSERT INTO tasks(title, section_id, done, position) VALUES ('Invalid', 1, 2, 0)",
+                "INSERT INTO tasks(title, section_id, status, position) VALUES ('Invalid', 1, 'invalid', 0)",
                 []
             )
             .is_err()
@@ -422,7 +426,7 @@ fn placing_tasks_moves_and_orders_the_destination_atomically() {
     assert_eq!(task_ids(&app), [second.id, first.id]);
     app.place_task(first.id, TaskList::Active { section_id: a.id }, &[first.id])
         .unwrap();
-    assert!(!app.get_task(first.id).unwrap().done);
+    assert_eq!(app.get_task(first.id).unwrap().status, TaskStatus::Open);
     assert_eq!(app.get_task(first.id).unwrap().section_id, a.id);
     assert!(matches!(
         app.place_task(first.id, TaskList::Active { section_id: 999 }, &[first.id]),

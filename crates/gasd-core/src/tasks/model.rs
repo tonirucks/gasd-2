@@ -26,19 +26,16 @@ pub struct Task {
     /// UTC Unix timestamp in milliseconds, initialized at creation and updated
     /// only when the status changes.
     pub status_changed_at: i64,
-    /// Compatibility projection of `status == TaskStatus::Done`.
-    pub done: bool,
     pub position: i64,
 }
 
-/// Legacy title, section, and completion update. Non-done statuses are preserved
-/// unless completion changes. Use `set_task_status` for explicit status changes.
+/// Complete replacement of editable task fields. Position is managed separately.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskUpdate {
     pub title: String,
     pub section_id: i64,
-    pub done: bool,
+    pub status: TaskStatus,
 }
 
 /// Active tasks are ordered within their section; completed tasks share one list.

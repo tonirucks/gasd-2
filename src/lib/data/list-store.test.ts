@@ -7,7 +7,7 @@ import type { ListData } from "./types";
 function setup() {
   const data: ListData = {
     sections: [{ id: 1, name: "Work", position: 0 }],
-    tasks: [{ id: 2, title: "Review", sectionId: 1, done: false, position: 0 }],
+    tasks: [{ id: 2, title: "Review", sectionId: 1, status: "open", statusChangedAt: 1, position: 0 }],
   };
   const client = {
     get: vi.fn().mockResolvedValue(data),
