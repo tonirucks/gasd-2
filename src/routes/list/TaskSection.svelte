@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GripVertical, Pencil, Plus } from "@lucide/svelte";
+  import { GripVertical, Pencil, Plus, Trash2 } from "@lucide/svelte";
   import { dragHandle } from "svelte-dnd-action";
   import InlineForm from "./InlineForm.svelte";
   import TaskList from "./TaskList.svelte";
@@ -19,8 +19,11 @@
     oncancelrename,
     onrename,
     onreorder,
+    onplace,
     ontoggle,
     onremove,
+    onedit,
+    ondeletesection,
   }: {
     section: Section;
     tasks: Task[];
@@ -35,11 +38,15 @@
     oncancelrename: () => void;
     onrename: (name: string) => void;
     onreorder: (tasks: Task[]) => void;
+    onplace: (tasks: Task[], id: number) => void;
     ontoggle: (taskId: number) => void;
     onremove: (taskId: number) => void;
+    onedit: (taskId: number, title: string) => Promise<boolean>;
+    ondeletesection: () => Promise<boolean>;
   } = $props();
 
   let editedName = $state("");
+  let confirmingDelete = $state(false);
 
   function startRename(): void {
     editedName = section.name;
@@ -75,16 +82,28 @@
       aria-label={`Rename ${section.name}`}
       onclick={startRename}><Pencil size={12} /></button
     >
+    <button
+      class="inline-flex shrink-0 rounded p-1.25 text-muted opacity-0 group-hover/section:opacity-100 hover:bg-surface focus-visible:opacity-100 max-[580px]:opacity-100"
+      aria-label={`Delete section ${section.name}`}
+      onclick={() => (confirmingDelete = true)}><Trash2 size={12} /></button>
   {/if}
 </div>
+{#if confirmingDelete}
+  <div class="mb-3 rounded-md border border-surface p-3 text-xs" role="group" aria-label={`Confirm deleting ${section.name}`}>
+    <p>Delete “{section.name}” and all its tasks, including completed tasks?</p>
+    <button class="mt-2 mr-4 text-mauve" onclick={async () => { if (await ondeletesection()) confirmingDelete = false; }}>Delete section and tasks</button>
+    <button class="text-muted" onclick={() => (confirmingDelete = false)}>Cancel</button>
+  </div>
+{/if}
 <TaskList
   {tasks}
-  {sections}
   label={`${section.name} tasks`}
   {flipDurationMs}
   {onreorder}
+  {onplace}
   {ontoggle}
   {onremove}
+  {onedit}
 />
 {#if adding}
   <div class="mt-1.5">

@@ -26,4 +26,9 @@ impl Service {
     pub fn reorder_tasks(&mut self, list: TaskList, ids: &[i64]) -> Result<()> {
         self.repository.reorder_tasks(list, ids)
     }
+
+    /// Moves one task and orders its destination in a single transaction.
+    pub fn place_task(&mut self, id: i64, list: TaskList, ids: &[i64]) -> Result<()> {
+        self.repository.place_task(id, list, ids)
+    }
 }

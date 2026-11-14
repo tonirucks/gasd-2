@@ -28,19 +28,39 @@ npm run tauri dev    # Desktop app with hot reload
 npm run tauri build  # Production desktop bundles
 npm run dev          # Frontend only (native commands require Tauri)
 npm run check        # Svelte and TypeScript checks
+npm test             # Frontend store tests
 npm run build        # Production frontend build
 ```
 
 Frontend code lives in `src/`; native Rust code and app configuration live in
-`src-tauri/`. The starter includes a `greet` command demonstrating frontend-to-Rust calls.
+`src-tauri/`. Run the desktop app for native data access; the frontend-only server
+shows a recoverable connection error rather than silently using demo data.
 
 ## Shared Rust backend
 
 `crates/gasd-core/` contains the transport-independent service/repository layer
-and SQLite migrations for sections and tasks. The CLI uses it directly; Tauri
-opens the shared database at startup, but task/section IPC commands and UI are
-not wired up yet. See [the backend guide](crates/gasd-core/README.md) for
+and SQLite migrations for sections and tasks. Both the CLI and Tauri use this
+service and the same database. See [the backend guide](crates/gasd-core/README.md) for
 usage, persistence behavior, and adapter responsibilities.
+
+### Desktop data flow
+
+- `src-tauri/src/commands/` groups native commands by domain (`sections_*`,
+  `tasks_*`), with `list_get` for loading and structured `{ code, message }` errors.
+  SQLite operations run on Tauri's blocking pool behind a shared service mutex.
+- `src/lib/data/client.ts` is the typed IPC boundary; `types.ts` mirrors core's
+  serialized models. Keep these models aligned when changing the native API.
+- `src/lib/data/list-store.ts` uses Svelte's built-in stores (no runtime store
+  dependency). It owns loading, write serialization, refresh, and error recovery.
+  Components own only presentation state and transient drag previews.
+- The UI supports section creation/rename/deletion, task creation/edit/deletion,
+  completion/reopening, and drag ordering/moves. Section deletion confirms that
+  completed tasks are also removed. Empty databases are not seeded with demo data.
+- Drag previews never reach storage. The destination's final drop calls core's
+  atomic `place_task`, validating full destination membership before committing.
+  Stale orders caused by CLI edits fail safely and reload current data.
+- Data reloads after writes and when the window regains focus (except during a
+  drag); external CLI edits are not streamed live while the app stays focused.
 
 The root Cargo workspace shares one `Cargo.lock`; its default members are the
 core and CLI crates, so their checks do not require desktop libraries:

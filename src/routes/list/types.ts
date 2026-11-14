@@ -1,13 +1,4 @@
-export type Section = {
-  id: number;
-  name: string;
-  isDndShadowItem?: boolean;
-};
+import type { Section as StoredSection, Task as StoredTask } from "$lib/data/types";
 
-export type Task = {
-  id: number;
-  title: string;
-  sectionId: number;
-  done: boolean;
-  isDndShadowItem?: boolean;
-};
+export type Section = StoredSection & { isDndShadowItem?: boolean };
+export type Task = StoredTask & { isDndShadowItem?: boolean };

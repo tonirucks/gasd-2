@@ -20,7 +20,12 @@ pub struct TaskUpdate {
 }
 
 /// Active tasks are ordered within their section; completed tasks share one list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum TaskList {
     Active { section_id: i64 },
     Done,

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, GripVertical, X } from "@lucide/svelte";
+  import { Check, GripVertical, Pencil, X } from "@lucide/svelte";
+  import InlineForm from "./InlineForm.svelte";
   import { dragHandle } from "svelte-dnd-action";
   import type { Task } from "./types";
 
@@ -8,12 +9,16 @@
     sectionName,
     ontoggle,
     onremove,
+    onedit,
   }: {
     task: Task;
     sectionName?: string;
     ontoggle: (taskId: number) => void;
     onremove: (taskId: number) => void;
+    onedit: (taskId: number, title: string) => Promise<boolean>;
   } = $props();
+  let editing = $state(false);
+  let title = $state("");
 </script>
 
 <div class="group/task relative flex min-h-12.25 items-center gap-3 py-2 max-[580px]:min-h-13 max-[580px]:gap-2.5">
@@ -33,7 +38,23 @@
     onclick={() => ontoggle(task.id)}
     >{#if task.done}<Check size={13} strokeWidth={2.5} />{/if}</button
   >
-  <span class={["min-w-0 flex-1 text-[13px] leading-[1.6] wrap-anywhere", task.done && "text-muted line-through"]}>{task.title}</span>
+  {#if editing}
+    <InlineForm
+      variant="rename"
+      bind:value={title}
+      label="Task title"
+      saveLabel="Save task title"
+      cancelLabel="Cancel task edit"
+      onsave={async (value) => { if (await onedit(task.id, value)) editing = false; }}
+      oncancel={() => (editing = false)}
+    />
+  {:else}
+    <span class={["min-w-0 flex-1 text-[13px] leading-[1.6] wrap-anywhere", task.done && "text-muted line-through"]}>{task.title}</span>
+    <button
+      class="inline-flex shrink-0 rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface focus-visible:opacity-100 max-[580px]:opacity-100"
+      aria-label={`Edit ${task.title}`}
+      onclick={() => { title = task.title; editing = true; }}><Pencil size={12} /></button>
+  {/if}
   {#if task.done}<span class="text-[10px] text-muted max-[580px]:max-w-16.25 max-[580px]:wrap-anywhere">{sectionName}</span>{/if}
   <button
     class="inline-flex shrink-0 items-center justify-center rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface hover:text-text focus-visible:opacity-100 max-[580px]:opacity-100"

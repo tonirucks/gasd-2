@@ -76,27 +76,54 @@ impl SqliteRepository {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        reorder_tasks(&tx, list, ids)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn place_task(&mut self, id: i64, list: TaskList, ids: &[i64]) -> Result<()> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let task = find_task(&tx, id)?;
         let (section_id, done) = match list {
             TaskList::Active { section_id } => {
                 find_section(&tx, section_id)?;
                 (section_id, false)
             }
-            TaskList::Done => (0, true),
+            TaskList::Done => (task.section_id, true),
         };
-        let existing = tx
-            .prepare("SELECT id FROM tasks WHERE done = ?1 AND (?1 = 1 OR section_id = ?2)")?
-            .query_map(params![done, section_id], |row| row.get(0))?
-            .collect::<rusqlite::Result<Vec<i64>>>()?;
-        validate_order(&existing, ids)?;
-        for (position, id) in ids.iter().enumerate() {
-            tx.execute(
-                "UPDATE tasks SET position = ?1 WHERE id = ?2",
-                params![position as i64, id],
-            )?;
-        }
+        // Membership validation below also rejects a destination omitting the moved task.
+        tx.execute(
+            "UPDATE tasks SET section_id = ?1, done = ?2 WHERE id = ?3",
+            params![section_id, done, id],
+        )?;
+        reorder_tasks(&tx, list, ids)?;
         tx.commit()?;
         Ok(())
     }
+}
+
+fn reorder_tasks(connection: &Connection, list: TaskList, ids: &[i64]) -> Result<()> {
+    let (section_id, done) = match list {
+        TaskList::Active { section_id } => {
+            find_section(connection, section_id)?;
+            (section_id, false)
+        }
+        TaskList::Done => (0, true),
+    };
+    let existing = connection
+        .prepare("SELECT id FROM tasks WHERE done = ?1 AND (?1 = 1 OR section_id = ?2)")?
+        .query_map(params![done, section_id], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<i64>>>()?;
+    validate_order(&existing, ids)?;
+    for (position, id) in ids.iter().enumerate() {
+        connection.execute(
+            "UPDATE tasks SET position = ?1 WHERE id = ?2",
+            params![position as i64, id],
+        )?;
+    }
+    Ok(())
 }
 
 fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {

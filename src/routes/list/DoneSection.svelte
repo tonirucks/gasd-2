@@ -1,22 +1,24 @@
 <script lang="ts">
   import { Check, ChevronDown } from "@lucide/svelte";
   import TaskList from "./TaskList.svelte";
-  import type { Section, Task } from "./types";
+  import type { Task } from "./types";
 
   let {
     tasks,
-    sections,
     flipDurationMs,
     onreorder,
+    onplace,
     ontoggle,
     onremove,
+    onedit,
   }: {
     tasks: Task[];
-    sections: Section[];
     flipDurationMs: number;
     onreorder: (tasks: Task[]) => void;
+    onplace: (tasks: Task[], id: number) => void;
     ontoggle: (taskId: number) => void;
     onremove: (taskId: number) => void;
+    onedit: (taskId: number, title: string) => Promise<boolean>;
   } = $props();
   let expanded = $state(true);
 </script>
@@ -42,12 +44,13 @@
     {#if expanded}
       <TaskList
         {tasks}
-        {sections}
         label="Done tasks"
         {flipDurationMs}
         {onreorder}
+        {onplace}
         {ontoggle}
         {onremove}
+        {onedit}
       />
       {#if tasks.length === 0}<p class="py-4.25 text-xs text-muted">
           Finished tasks will land here.

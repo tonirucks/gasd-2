@@ -390,6 +390,62 @@ fn newer_schema_is_rejected_without_modification() {
 }
 
 #[test]
+fn placing_tasks_moves_and_orders_the_destination_atomically() {
+    let mut app = service();
+    let a = app.create_section("A").unwrap();
+    let b = app.create_section("B").unwrap();
+    let first = app.create_task(a.id, "First").unwrap();
+    let second = app.create_task(b.id, "Second").unwrap();
+    let destination = TaskList::Active { section_id: b.id };
+    let before = app.get_tasks().unwrap();
+    for ids in [
+        vec![first.id],
+        vec![second.id],
+        vec![first.id, first.id],
+        vec![first.id, 999],
+    ] {
+        assert!(matches!(
+            app.place_task(first.id, destination, &ids),
+            Err(Error::InvalidOrder)
+        ));
+        assert_eq!(app.get_tasks().unwrap(), before);
+    }
+    app.place_task(first.id, destination, &[first.id, second.id])
+        .unwrap();
+    assert_eq!(task_ids(&app), [first.id, second.id]);
+    assert_eq!(app.get_task(first.id).unwrap().section_id, b.id);
+    app.place_task(first.id, TaskList::Done, &[first.id])
+        .unwrap();
+    assert_eq!(app.get_task(first.id).unwrap().section_id, b.id);
+    app.place_task(second.id, TaskList::Done, &[second.id, first.id])
+        .unwrap();
+    assert_eq!(task_ids(&app), [second.id, first.id]);
+    app.place_task(first.id, TaskList::Active { section_id: a.id }, &[first.id])
+        .unwrap();
+    assert!(!app.get_task(first.id).unwrap().done);
+    assert_eq!(app.get_task(first.id).unwrap().section_id, a.id);
+    assert!(matches!(
+        app.place_task(first.id, TaskList::Active { section_id: 999 }, &[first.id]),
+        Err(Error::NotFound { .. })
+    ));
+}
+
+#[test]
+fn task_list_ipc_uses_tagged_camel_case() {
+    let active = TaskList::Active { section_id: 42 };
+    let json = serde_json::to_value(active).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!({ "kind": "active", "sectionId": 42 })
+    );
+    assert_eq!(serde_json::from_value::<TaskList>(json).unwrap(), active);
+    assert_eq!(
+        serde_json::to_value(TaskList::Done).unwrap(),
+        serde_json::json!({ "kind": "done" })
+    );
+}
+
+#[test]
 fn empty_lists_can_be_reordered_and_deleted_ids_are_not_reused() {
     let mut app = service();
     app.reorder_sections(&[]).unwrap();
