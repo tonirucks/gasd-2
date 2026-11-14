@@ -22,6 +22,6 @@ pub mod tasks;
 mod validation;
 
 pub use error::{Error, Result};
-pub use model::{Section, Task, TaskList, TaskUpdate};
+pub use model::{Section, Task, TaskList, TaskStatus, TaskUpdate};
 pub use service::Service;
 pub use sqlite::SqliteRepository;

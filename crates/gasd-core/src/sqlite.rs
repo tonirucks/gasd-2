@@ -41,8 +41,8 @@ impl SqliteRepository {
         }
         if version < 1 {
             transaction.execute_batch(include_str!("../migrations/001_initial.sql"))?;
-            transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
+        transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         transaction.commit()?;
         Ok(Self { connection })
     }

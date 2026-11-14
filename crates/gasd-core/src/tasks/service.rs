@@ -1,4 +1,4 @@
-use crate::{Result, Service, Task, TaskList, TaskUpdate, validation::nonblank};
+use crate::{Result, Service, Task, TaskList, TaskStatus, TaskUpdate, validation::nonblank};
 
 impl Service {
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
@@ -21,6 +21,10 @@ impl Service {
 
     pub fn delete_task(&mut self, id: i64) -> Result<()> {
         self.repository.delete_task(id)
+    }
+
+    pub fn set_task_status(&mut self, id: i64, status: TaskStatus) -> Result<Task> {
+        self.repository.set_task_status(id, status)
     }
 
     pub fn reorder_tasks(&mut self, list: TaskList, ids: &[i64]) -> Result<()> {

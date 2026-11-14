@@ -2,13 +2,13 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::sections::repository::find_section;
 use crate::sqlite::{require_changed, validate_order};
-use crate::{Error, Result, SqliteRepository, Task, TaskList, TaskUpdate};
+use crate::{Error, Result, SqliteRepository, Task, TaskList, TaskStatus, TaskUpdate};
 
 impl SqliteRepository {
     /// Returns active tasks in section order, followed by the shared done list.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.done, t.position
+            "SELECT t.id, t.title, t.section_id, t.done, t.position, t.status, t.status_changed_at
              FROM tasks t JOIN sections s ON s.id = t.section_id
              ORDER BY t.done,
                       CASE WHEN t.done = 0 THEN s.position ELSE 0 END,
@@ -46,6 +46,7 @@ impl SqliteRepository {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current = find_task(&tx, id)?;
         find_section(&tx, update.section_id)?;
+        let status = completion_status(current.status, update.done);
         let changed_list = current.done != update.done
             || (!update.done && current.section_id != update.section_id);
         let position = if changed_list {
@@ -54,8 +55,16 @@ impl SqliteRepository {
             current.position
         };
         tx.execute(
-            "UPDATE tasks SET title = ?1, section_id = ?2, done = ?3, position = ?4 WHERE id = ?5",
-            params![update.title, update.section_id, update.done, position, id],
+            "UPDATE tasks SET title = ?1, section_id = ?2, done = ?3, position = ?4,
+             status = ?6 WHERE id = ?5",
+            params![
+                update.title,
+                update.section_id,
+                update.done,
+                position,
+                id,
+                status
+            ],
         )?;
         let task = find_task(&tx, id)?;
         tx.commit()?;
@@ -69,6 +78,27 @@ impl SqliteRepository {
             "task",
             id,
         )
+    }
+
+    /// Status changes within the active list preserve position. Crossing the
+    /// completion boundary appends to the destination list.
+    pub fn set_task_status(&mut self, id: i64, status: TaskStatus) -> Result<Task> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current = find_task(&tx, id)?;
+        let position = if current.done != status.is_done() {
+            next_task_position(&tx, current.section_id, status.is_done())?
+        } else {
+            current.position
+        };
+        tx.execute(
+            "UPDATE tasks SET status = ?1, done = ?2, position = ?3 WHERE id = ?4",
+            params![status, status.is_done(), position, id],
+        )?;
+        let task = find_task(&tx, id)?;
+        tx.commit()?;
+        Ok(task)
     }
 
     /// Validates complete membership and updates ordering atomically.
@@ -95,8 +125,8 @@ impl SqliteRepository {
         };
         // Membership validation below also rejects a destination omitting the moved task.
         tx.execute(
-            "UPDATE tasks SET section_id = ?1, done = ?2 WHERE id = ?3",
-            params![section_id, done, id],
+            "UPDATE tasks SET section_id = ?1, done = ?2, status = ?4 WHERE id = ?3",
+            params![section_id, done, id, completion_status(task.status, done)],
         )?;
         reorder_tasks(&tx, list, ids)?;
         tx.commit()?;
@@ -133,18 +163,55 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         section_id: row.get(2)?,
         done: row.get(3)?,
         position: row.get(4)?,
+        status: row.get(5)?,
+        status_changed_at: row.get(6)?,
     })
 }
 
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
     connection
         .query_row(
-            "SELECT id, title, section_id, done, position FROM tasks WHERE id = ?1",
+            "SELECT id, title, section_id, done, position, status, status_changed_at
+             FROM tasks WHERE id = ?1",
             [id],
             task_row,
         )
         .optional()?
         .ok_or(Error::NotFound { entity: "task", id })
+}
+
+fn completion_status(current: TaskStatus, done: bool) -> TaskStatus {
+    if done {
+        TaskStatus::Done
+    } else if current.is_done() {
+        TaskStatus::Open
+    } else {
+        current
+    }
+}
+
+impl rusqlite::types::ToSql for TaskStatus {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(match self {
+            Self::Open => "open",
+            Self::InProgress => "inProgress",
+            Self::Waiting => "waiting",
+            Self::Done => "done",
+        }
+        .into())
+    }
+}
+
+impl rusqlite::types::FromSql for TaskStatus {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        match value.as_str()? {
+            "open" => Ok(Self::Open),
+            "inProgress" => Ok(Self::InProgress),
+            "waiting" => Ok(Self::Waiting),
+            "done" => Ok(Self::Done),
+            _ => Err(rusqlite::types::FromSqlError::InvalidType),
+        }
+    }
 }
 
 fn next_task_position(connection: &Connection, section_id: i64, done: bool) -> Result<i64> {
