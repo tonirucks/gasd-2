@@ -12,12 +12,20 @@ function setup() {
   const client = {
     get: vi.fn().mockResolvedValue(data),
     sections: { create: vi.fn(), rename: vi.fn(), delete: vi.fn(), reorder: vi.fn() },
-    tasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), reorder: vi.fn(), place: vi.fn() },
+    tasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), reorder: vi.fn(), place: vi.fn(), linkJira: vi.fn() },
   } satisfies ListClient;
   return { data, client, store: createListStore(client) };
 }
 
 describe("list store", () => {
+  it("refreshes after linking and unlinking Jira tickets", async () => {
+    const { store, client } = setup();
+    expect(await store.linkJira(2, "TEAM-1")).toBe(true);
+    expect(client.tasks.linkJira).toHaveBeenLastCalledWith(2, "TEAM-1");
+    expect(await store.linkJira(2, null)).toBe(true);
+    expect(client.tasks.linkJira).toHaveBeenLastCalledWith(2, null);
+    expect(client.get).toHaveBeenCalledTimes(2);
+  });
   it("loads canonical data and refreshes after a mutation", async () => {
     const { store, client, data } = setup();
     expect(await store.load()).toBe(true);

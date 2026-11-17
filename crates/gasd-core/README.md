@@ -93,12 +93,14 @@ app.update_task(task.id, TaskUpdate {
   Every multi-statement mutation and migration uses an immediate transaction;
   each connection waits up to five seconds for locks before returning a storage
   error. Desktop and CLI can open separate connections to the same local file.
-- Opening a database applies migrations transactionally using `user_version`.
-  The initial schema (version 1) includes task status and status timestamps.
-  During this early development stage, databases created with earlier schema
-  definitions must be reset; there is no upgrade path for them.
-  Unknown newer schema versions are rejected. Add sequential migrations when
-  evolving the schema; do not edit an already-released migration.
+- Opening a database initializes the schema transactionally using `user_version`.
+  Until the first version is finished, keep all schema changes in
+  `migrations/001_initial.sql` and keep the schema version at 1. This includes
+  tasks, status timestamps, Jira queries and links, and application settings.
+  There is no upgrade path for development databases; the owner deletes or
+  resets the database when the schema changes. Unknown newer schema versions
+  are rejected. API tokens are never stored by core; the desktop adapter uses
+  the OS credential store.
 - Adapters select a shared database path, create its parent directory, and map
   errors to IPC responses or CLI exit codes. The core's `storage` module
   provides shared path selection and opening for both adapters; the desktop opens

@@ -1,5 +1,5 @@
 import { invoke as invokeNative, isTauri } from "@tauri-apps/api/core";
-import type { ListData, Section, Task, TaskList, TaskUpdate } from "./types";
+import type { AppSettings, JiraPage, JiraQuery, ListData, Section, Task, TaskList, TaskUpdate } from "./types";
 
 function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
@@ -23,7 +23,24 @@ export const listClient = {
     delete: (id: number) => invoke<void>("tasks_delete", { id }),
     reorder: (list: TaskList, ids: number[]) => invoke<void>("tasks_reorder", { list, ids }),
     place: (id: number, list: TaskList, ids: number[]) => invoke<void>("tasks_place", { id, list, ids }),
+    linkJira: (taskId: number, key: string | null) => invoke<Task>("jira_task_link", { taskId, key }),
   },
 };
 
 export type ListClient = typeof listClient;
+
+export const jiraClient = {
+  queries: () => invoke<JiraQuery[]>("jira_queries"),
+  saveQuery: (id: number | null, name: string, jql: string) => invoke<JiraQuery>("jira_query_save", { id, name, jql }),
+  deleteQuery: (id: number) => invoke<void>("jira_query_delete", { id }),
+  search: (queryId: number, nextPageToken: string | null = null) => invoke<JiraPage>("jira_search", { queryId, nextPageToken }),
+};
+
+export const settingsClient = {
+  get: () => invoke<AppSettings>("settings_get"),
+  saveJira: (site: string, email: string, token: string | null) => invoke<AppSettings>("settings_save_jira", { site, email, token }),
+  clearJira: () => invoke<void>("settings_clear_jira"),
+  testJira: () => invoke<void>("jira_test_connection"),
+};
+
+export type SettingsClient = typeof settingsClient;

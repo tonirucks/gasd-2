@@ -22,6 +22,15 @@ pub fn run() {
             commands::tasks_delete,
             commands::tasks_reorder,
             commands::tasks_place,
+            commands::jira_queries,
+            commands::jira_query_save,
+            commands::jira_query_delete,
+            commands::jira_search,
+            commands::jira_task_link,
+            commands::jira_test_connection,
+            commands::settings_get,
+            commands::settings_save_jira,
+            commands::settings_clear_jira,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

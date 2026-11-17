@@ -27,6 +27,8 @@ pub struct Task {
     /// only when the status changes.
     pub status_changed_at: i64,
     pub position: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jira: Option<crate::jira::JiraLink>,
 }
 
 /// Complete replacement of editable task fields. Position is managed separately.

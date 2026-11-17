@@ -78,6 +78,52 @@ cargo clippy -p gasd-core -p gasd-cli --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
+## Jira Cloud
+
+The desktop app supports named, saved JQL queries and one optional Jira ticket
+per local task. Jira access is read-only: linking does not change Jira or sync
+task status. Open **Settings** in the app header to configure your connection:
+
+1. Enter your Jira site (for example, `https://your-team.atlassian.net`).
+2. Enter your Atlassian account email and API token.
+3. **Save connection**, then **Test saved connection**.
+
+Site and email are stored in the shared SQLite database's `app_settings` table.
+The token is stored separately in your OS credential store (macOS Keychain,
+Windows Credential Manager, or a Linux Secret Service provider such as GNOME
+Keyring or KeePassXC). The UI only receives whether a token exists, never its
+saved value. A locked or unavailable credential store produces an error; there
+is no plaintext fallback. Credential-store work runs on the native blocking pool.
+
+Leave the token field blank to keep the saved token for the same site and email,
+or enter a replacement. Changes apply immediately, without restarting. Changing
+the site or account requires a token for that connection; credentials are scoped
+to the site and email. **Disconnect** removes the active connection and its token,
+but keeps saved queries and task links. The earlier `GASD_JIRA_*` environment
+variables are no longer used. On Linux, ensure your Secret Service provider is
+running and its keyring is unlocked before saving a token. OS credentials are
+separate from the database: database backups and `gasd clean` do not copy or delete
+credential-store entries.
+
+Use an **unscoped Jira Cloud API token** created at
+<https://id.atlassian.com/manage-profile/security/api-tokens> and your Atlassian
+account email. Scoped tokens using the Atlassian API gateway are not supported
+in this minimal version. The site must be an HTTPS `*.atlassian.net` origin,
+without a path. Requests time out after 30 seconds and never follow redirects
+with credentials.
+
+Use the header menu to switch between **Board**, **Jira import**, and **Settings**.
+On the **Jira import** page, create a named query, then **Run query**.
+Results show ticket key, summary, and status, with **Load more tickets** for
+pagination. Select a task beside a result to link it; replacing an existing link
+asks for confirmation. Alternatively, use **Link Jira ticket** on a task and
+enter a key such as `TEAM-123`. Tickets are checked against Jira before linking.
+Click a linked key to open Jira, or **Unlink** to remove the local association
+(no connection needed). Deleting a query does not remove task links. Searches
+run only when requested; results are not cached or synchronized in the background.
+CLI task edits preserve links, and JSON task output includes `jira` when linked;
+Jira query management and linking are desktop-only for now.
+
 ## Command-line interface
 
 The non-interactive CLI lives in `crates/gasd-cli/` and builds a `gasd` binary.

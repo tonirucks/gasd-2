@@ -1,7 +1,11 @@
+mod jira;
 mod sections;
+mod settings;
 mod tasks;
 
+pub use jira::*;
 pub use sections::*;
+pub use settings::*;
 pub use tasks::*;
 
 use gasd_core::Service;
@@ -38,13 +42,21 @@ async fn with_service<T: Send + 'static>(
     state: tauri::State<'_, AppState>,
     operation: impl FnOnce(&mut Service) -> gasd_core::Result<T> + Send + 'static,
 ) -> Result<T> {
+    with_native_service(state, move |service| operation(service).map_err(Into::into)).await
+}
+
+// Native settings operations also need credential-store errors, not only core errors.
+async fn with_native_service<T: Send + 'static>(
+    state: tauri::State<'_, AppState>,
+    operation: impl FnOnce(&mut Service) -> Result<T> + Send + 'static,
+) -> Result<T> {
     let state = Arc::clone(state.inner());
     tauri::async_runtime::spawn_blocking(move || {
         let mut service = state.lock().map_err(|_| CommandError {
             code: "internal",
             message: "The database is unavailable. Please restart the app.".into(),
         })?;
-        Ok(operation(&mut service)?)
+        operation(&mut service)
     })
     .await
     .map_err(|error| CommandError {

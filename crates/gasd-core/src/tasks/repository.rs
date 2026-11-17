@@ -8,7 +8,7 @@ impl SqliteRepository {
     /// Returns tasks in section, status column, and task order.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at
+            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url
              FROM tasks t JOIN sections s ON s.id = t.section_id
              ORDER BY s.position, s.id,
                       CASE t.status WHEN 'open' THEN 0 WHEN 'inProgress' THEN 1
@@ -143,13 +143,20 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         position: row.get(3)?,
         status: row.get(4)?,
         status_changed_at: row.get(5)?,
+        jira: match row.get::<_, Option<String>>(6)? {
+            Some(key) => Some(crate::jira::JiraLink {
+                key,
+                url: row.get(7)?,
+            }),
+            None => None,
+        },
     })
 }
 
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
     connection
         .query_row(
-            "SELECT id, title, section_id, position, status, status_changed_at
+            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url
              FROM tasks WHERE id = ?1",
             [id],
             task_row,

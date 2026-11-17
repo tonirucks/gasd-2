@@ -12,7 +12,9 @@ CREATE TABLE tasks (
     status TEXT NOT NULL DEFAULT 'open'
         CHECK (status IN ('open', 'inProgress', 'waiting', 'done')),
     status_changed_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER))
-        CHECK (status_changed_at >= 0)
+        CHECK (status_changed_at >= 0),
+    jira_key TEXT,
+    jira_url TEXT
 );
 
 CREATE INDEX sections_order ON sections(position, id);
@@ -25,3 +27,14 @@ BEGIN
     UPDATE tasks SET status_changed_at = CAST(unixepoch('subsec') * 1000 AS INTEGER)
     WHERE id = NEW.id;
 END;
+
+CREATE TABLE jira_queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+    jql TEXT NOT NULL CHECK(length(trim(jql)) > 0)
+);
+
+CREATE TABLE app_settings (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+);

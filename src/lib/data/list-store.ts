@@ -68,6 +68,7 @@ export function createListStore(client: ListClient = listClient) {
     updateTask: (id: number, update: TaskUpdate) =>
       run(() => client.tasks.update(id, update)),
     deleteTask: (id: number) => run(() => client.tasks.delete(id)),
+    linkJira: (id: number, key: string | null) => run(() => client.tasks.linkJira(id, key)),
     placeTask: (...args: Parameters<ListClient["tasks"]["place"]>) => run(() => client.tasks.place(...args)),
   };
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { GripVertical, Pencil, X } from "@lucide/svelte";
   import InlineForm from "./InlineForm.svelte";
+  import TaskJira from "./TaskJira.svelte";
   import { dragHandle } from "svelte-dnd-action";
   import type { Task } from "../state/types";
   import { getBoard } from "../state/context";
@@ -32,7 +33,10 @@
       oncancel={() => (editing = false)}
     />
   {:else}
-    <span class={["min-w-0 flex-1 text-[13px] leading-[1.6] wrap-anywhere", task.status === "done" && "text-muted line-through"]}>{task.title}</span>
+    <div class="min-w-0 flex-1">
+      <span class={["text-[13px] leading-[1.6] wrap-anywhere", task.status === "done" && "text-muted line-through"]}>{task.title}</span>
+      <TaskJira {task} />
+    </div>
     <button
       class="inline-flex shrink-0 rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface focus-visible:opacity-100 max-[580px]:opacity-100"
       aria-label={`Edit ${task.title}`}

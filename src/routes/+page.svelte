@@ -7,7 +7,6 @@
     TRIGGERS,
     type DndEvent,
   } from "svelte-dnd-action";
-  import AppHeader from "./list/components/AppHeader.svelte";
   import InlineForm from "./list/components/InlineForm.svelte";
   import ListHeader from "./list/components/ListHeader.svelte";
   import TaskSection from "./list/components/TaskSection.svelte";
@@ -44,7 +43,6 @@
 </svelte:head>
 
 <div>
-  <AppHeader />
   <main class="mx-auto max-w-360 px-7 pt-12 pb-20 max-[580px]:pt-9.5 max-[580px]:pb-12.5">
     {#if board.state.error}
       <div role="alert" class="mb-6 rounded-md border border-mauve p-4 text-sm">

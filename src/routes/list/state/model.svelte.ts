@@ -67,6 +67,7 @@ export function createBoard() {
       return list.updateTask(id, { title, sectionId: task.sectionId, status: task.status });
     },
     deleteTask: list.deleteTask,
+    linkJira: list.linkJira,
     startSection() { addingSection = true; },
     cancelSection() { addingSection = false; },
     async addSection(name: string) {
