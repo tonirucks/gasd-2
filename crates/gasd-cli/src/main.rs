@@ -86,11 +86,14 @@ enum Update {
 }
 
 #[derive(Args)]
-#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["title", "section", "status"])))]
+#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["title", "description", "section", "status"])))]
 struct TaskEdit {
     id: i64,
     #[arg(long)]
     title: Option<String>,
+    /// Set the description (use an empty string to clear it)
+    #[arg(long)]
+    description: Option<String>,
     #[arg(long)]
     section: Option<i64>,
     /// Set status: open, inProgress, waiting, done
@@ -134,20 +137,26 @@ fn text(value: &str) -> String {
 }
 
 fn tasks(rows: &[Task], json: bool) -> Result<(), Box<dyn Error>> {
-    print_rows(rows, json, "ID\tSECTION\tSTATUS\tTITLE", |task| {
-        format!(
-            "{}\t{}\t{}\t{}",
-            task.id,
-            task.section_id,
-            match task.status {
-                TaskStatus::Open => "open",
-                TaskStatus::InProgress => "inProgress",
-                TaskStatus::Waiting => "waiting",
-                TaskStatus::Done => "done",
-            },
-            text(&task.title)
-        )
-    })
+    print_rows(
+        rows,
+        json,
+        "ID\tSECTION\tSTATUS\tTITLE\tDESCRIPTION",
+        |task| {
+            format!(
+                "{}\t{}\t{}\t{}\t{}",
+                task.id,
+                task.section_id,
+                match task.status {
+                    TaskStatus::Open => "open",
+                    TaskStatus::InProgress => "inProgress",
+                    TaskStatus::Waiting => "waiting",
+                    TaskStatus::Done => "done",
+                },
+                text(&task.title),
+                text(&task.description)
+            )
+        },
+    )
 }
 
 fn sections(rows: &[Section], json: bool) -> Result<(), Box<dyn Error>> {
@@ -238,6 +247,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 edit.id,
                 TaskUpdate {
                     title: edit.title.unwrap_or(old.title),
+                    description: edit.description.unwrap_or(old.description),
                     section_id: edit.section.unwrap_or(old.section_id),
                     status: edit.status.unwrap_or(old.status),
                 },

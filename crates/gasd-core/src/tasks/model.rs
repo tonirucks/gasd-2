@@ -21,14 +21,25 @@ impl TaskStatus {
 pub struct Task {
     pub id: i64,
     pub title: String,
+    pub description: String,
     pub section_id: i64,
     pub status: TaskStatus,
     /// UTC Unix timestamp in milliseconds, initialized at creation and updated
     /// only when the status changes.
     pub status_changed_at: i64,
     pub position: i64,
+    #[serde(default)]
+    pub subtasks: Vec<Subtask>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jira: Option<crate::jira::JiraLink>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Subtask {
+    pub id: i64,
+    pub title: String,
+    pub completed: bool,
 }
 
 /// Complete replacement of editable task fields. Position is managed separately.
@@ -36,6 +47,7 @@ pub struct Task {
 #[serde(rename_all = "camelCase")]
 pub struct TaskUpdate {
     pub title: String,
+    pub description: String,
     pub section_id: i64,
     pub status: TaskStatus,
 }

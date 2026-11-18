@@ -5,7 +5,7 @@ import type { Task } from "./types";
 const now = new Date(2026, 10, 14, 12).getTime();
 const midnight = new Date(2026, 10, 14).getTime();
 function task(id: number, fields: Partial<Task> = {}): Task {
-  return { id, title: `Task ${id}`, sectionId: 1, status: "open", statusChangedAt: now, position: 0, ...fields };
+  return { id, title: `Task ${id}`, description: "", sectionId: 1, status: "open", statusChangedAt: now, position: 0, subtasks: [], ...fields };
 }
 
 describe("board visibility", () => {

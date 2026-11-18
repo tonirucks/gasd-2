@@ -7,17 +7,52 @@ import type { ListData } from "./types";
 function setup() {
   const data: ListData = {
     sections: [{ id: 1, name: "Work", position: 0 }],
-    tasks: [{ id: 2, title: "Review", sectionId: 1, status: "open", statusChangedAt: 1, position: 0 }],
+    tasks: [{ id: 2, title: "Review", description: "", sectionId: 1, status: "open", statusChangedAt: 1, position: 0, subtasks: [] }],
   };
   const client = {
     get: vi.fn().mockResolvedValue(data),
     sections: { create: vi.fn(), rename: vi.fn(), delete: vi.fn(), reorder: vi.fn() },
     tasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), reorder: vi.fn(), place: vi.fn(), linkJira: vi.fn() },
+    subtasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   } satisfies ListClient;
   return { data, client, store: createListStore(client) };
 }
 
 describe("list store", () => {
+  it("persists subtask changes and refreshes the parent task", async () => {
+    const { store, client, data } = setup();
+    const subtask = { id: 3, title: "Check tests", completed: false };
+    client.get.mockResolvedValue({ ...data, tasks: [{ ...data.tasks[0], subtasks: [subtask] }] });
+    expect(await store.createSubtask(2, "Check tests")).toBe(true);
+    expect(client.subtasks.create).toHaveBeenCalledWith(2, "Check tests");
+    expect(get(store).data.tasks[0].subtasks).toEqual([subtask]);
+    expect(await store.updateSubtask(2, 3, "Run tests", true)).toBe(true);
+    expect(client.subtasks.update).toHaveBeenCalledWith(2, 3, "Run tests", true);
+    expect(await store.deleteSubtask(2, 3)).toBe(true);
+    expect(client.subtasks.delete).toHaveBeenCalledWith(2, 3);
+    expect(client.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports failed subtask writes without losing existing data", async () => {
+    const { store, client, data } = setup();
+    await store.load();
+    client.subtasks.create.mockRejectedValueOnce({ message: "Could not add subtask" });
+    expect(await store.createSubtask(2, "Check tests")).toBe(false);
+    expect(get(store)).toMatchObject({ data, busy: false, error: "Could not add subtask" });
+  });
+
+  it("saves and clears task descriptions and refreshes canonical data", async () => {
+    const { store, client, data } = setup();
+    const update = { title: "Review", description: "Check the changes\nThen approve", sectionId: 1, status: "open" } as const;
+    client.get.mockResolvedValueOnce({ ...data, tasks: [{ ...data.tasks[0], ...update }] });
+    expect(await store.updateTask(2, update)).toBe(true);
+    expect(client.tasks.update).toHaveBeenLastCalledWith(2, update);
+    expect(get(store).data.tasks[0].description).toBe(update.description);
+    expect(await store.updateTask(2, { ...update, description: "" })).toBe(true);
+    expect(client.tasks.update).toHaveBeenLastCalledWith(2, { ...update, description: "" });
+    expect(get(store).data.tasks[0].description).toBe("");
+  });
+
   it("refreshes after linking and unlinking Jira tickets", async () => {
     const { store, client } = setup();
     expect(await store.linkJira(2, "TEAM-1")).toBe(true);

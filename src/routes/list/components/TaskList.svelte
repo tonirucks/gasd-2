@@ -1,6 +1,6 @@
 <script lang="ts">
   import { flip } from "svelte/animate";
-  import { dragHandleZone, SOURCES, TRIGGERS, type DndEvent } from "svelte-dnd-action";
+  import { dndzone, SOURCES, TRIGGERS, type DndEvent } from "svelte-dnd-action";
   import TaskRow from "./TaskRow.svelte";
   import type { Task } from "../state/types";
   import type { TaskStatus } from "$lib/data/types";
@@ -34,7 +34,7 @@
 
 <div
   class="min-h-24 space-y-2 rounded-md"
-  use:dragHandleZone={{
+  use:dndzone={{
     items: tasks,
     type: "tasks",
     useCursorForDetection: true,
@@ -54,7 +54,7 @@
   aria-label={label}
 >
   {#each tasks as task (task.id)}
-    <div aria-label={task.title} animate:flip={{ duration: board.flipDurationMs }}>
+    <div class="cursor-grab active:cursor-grabbing" aria-label={`Move ${task.title}`} animate:flip={{ duration: board.flipDurationMs }}>
       <TaskRow {task} />
     </div>
   {/each}

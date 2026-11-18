@@ -4,7 +4,7 @@ use rusqlite::{Connection, TransactionBehavior};
 
 use crate::{Error, Result};
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 impl From<rusqlite::Error> for Error {
     fn from(error: rusqlite::Error) -> Self {
@@ -41,6 +41,9 @@ impl SqliteRepository {
         }
         if version < 1 {
             transaction.execute_batch(include_str!("../migrations/001_initial.sql"))?;
+        }
+        if version < 2 {
+            transaction.execute_batch(include_str!("../migrations/002_extend_task_model.sql"))?;
         }
         transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         transaction.commit()?;

@@ -98,6 +98,30 @@ fn command_workflow_persists_and_preserves_unspecified_fields() {
 }
 
 #[test]
+fn descriptions_can_be_set_preserved_listed_and_cleared() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("tasks.sqlite3");
+    json(&db, &["add", "section", "Work"]);
+    let task = json(&db, &["add", "task", "Review", "--section", "1"]);
+    assert_eq!(task[0]["description"], "");
+    let description = "Check changes\nThen approve\t\u{1b}[31m";
+    let edited = json(&db, &["update", "task", "1", "--description", description]);
+    assert_eq!(edited[0]["description"], description);
+    assert_eq!(edited[0]["statusChangedAt"], task[0]["statusChangedAt"]);
+    let renamed = json(&db, &["update", "task", "1", "--title", "Review again"]);
+    assert_eq!(renamed[0]["description"], description);
+    assert_eq!(json(&db, &["list"]), renamed);
+    let output = invoke(&db, &["list"]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(stdout.lines().count(), 2);
+    assert!(stdout.contains("Check changes\\nThen approve\\t\\u{1b}[31m"));
+    let cleared = json(&db, &["update", "task", "1", "--description", ""]);
+    assert_eq!(cleared[0]["description"], "");
+    assert_eq!(cleared[0]["title"], "Review again");
+}
+
+#[test]
 fn status_filters_select_exact_matches_without_changing_order() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("db.sqlite3");

@@ -25,6 +25,12 @@ export const listClient = {
     place: (id: number, list: TaskList, ids: number[]) => invoke<void>("tasks_place", { id, list, ids }),
     linkJira: (taskId: number, key: string | null) => invoke<Task>("jira_task_link", { taskId, key }),
   },
+  subtasks: {
+    create: (taskId: number, title: string) => invoke<Task>("subtasks_create", { taskId, title }),
+    update: (taskId: number, id: number, title: string, completed: boolean) =>
+      invoke<Task>("subtasks_update", { taskId, id, title, completed }),
+    delete: (taskId: number, id: number) => invoke<Task>("subtasks_delete", { taskId, id }),
+  },
 };
 
 export type ListClient = typeof listClient;

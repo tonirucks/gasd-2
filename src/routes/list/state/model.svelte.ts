@@ -5,6 +5,7 @@ import { createListStore } from "$lib/data/list-store";
 import type { TaskList, TaskStatus } from "$lib/data/types";
 import { destinationOrder, previewColumn } from "./board";
 import type { Section, Task } from "./types";
+import { persistTaskDraft, type TaskDraft } from "./task-draft";
 
 /** One model per board. Persisted data and temporary drag previews stay separate. */
 export function createBoard() {
@@ -17,6 +18,19 @@ export function createBoard() {
   let addingTo = $state<number | null>(null);
   let addingSection = $state(false);
   let editingSection = $state<number | null>(null);
+  let taskDraft = $state<TaskDraft | null>(null);
+  let failedAutosave = $state<string | null>(null);
+  let pendingBlurSave = $state(false);
+  const selectedTask = $derived(
+    state.current.data.tasks.find((task) => task.id === taskDraft?.id),
+  );
+  const taskDirty = $derived(taskDraft !== null && (
+    taskDraft.title !== taskDraft.savedTitle || taskDraft.description !== taskDraft.savedDescription
+  ));
+  const draftSnapshot = $derived(taskDraft
+    ? JSON.stringify([taskDraft.id, taskDraft.title, taskDraft.description])
+    : null);
+  const taskSaveFailed = $derived(taskDirty && failedAutosave !== null && failedAutosave === draftSnapshot);
   const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
   const remaining = $derived(
     tasks.filter((task) => task.status !== "done" && !task.isDndShadowItem).length,
@@ -25,7 +39,38 @@ export function createBoard() {
   $effect(() => {
     sections = state.current.data.sections;
     tasks = state.current.data.tasks;
+    if (state.current.loaded && !state.current.busy && taskDraft && !selectedTask) taskDraft = null;
   });
+
+  $effect(() => {
+    // A blur during another write must not drop the newly edited field.
+    if (pendingBlurSave && !state.current.busy) {
+      pendingBlurSave = false;
+      void saveTaskDetails();
+    }
+  });
+
+  async function saveTaskDetails(): Promise<boolean> {
+    if (!taskDirty) return true;
+    const draft = taskDraft;
+    const task = selectedTask;
+    const snapshot = draftSnapshot;
+    if (!draft || !task || !draft.title.trim()) return false;
+    if (state.current.busy) {
+      pendingBlurSave = true;
+      return false;
+    }
+    const saved = await persistTaskDraft(draft, task, list.updateTask);
+    failedAutosave = saved ? null : snapshot;
+    return saved;
+  }
+
+  async function flushTaskDetails(): Promise<boolean> {
+    while (taskDirty) {
+      if (!await saveTaskDetails()) return false;
+    }
+    return true;
+  }
 
   onMount(() => {
     void list.load();
@@ -40,6 +85,26 @@ export function createBoard() {
     get addingTo() { return addingTo; },
     get addingSection() { return addingSection; },
     get editingSection() { return editingSection; },
+    get selectedTask() { return selectedTask; },
+    get taskDraft() { return taskDraft; },
+    get taskDirty() { return taskDirty; },
+    get taskSaveFailed() { return taskSaveFailed; },
+    async openTaskDetails(id: number) {
+      if (state.current.busy || taskDraft?.id === id) return;
+      if (!await flushTaskDetails()) return;
+      const task = state.current.data.tasks.find((task) => task.id === id);
+      if (!task) return;
+      failedAutosave = null;
+      taskDraft = {
+        id, title: task.title, description: task.description,
+        savedTitle: task.title, savedDescription: task.description,
+      };
+    },
+    async closeTaskDetails() {
+      if (state.current.busy || !await flushTaskDetails()) return;
+      taskDraft = null;
+    },
+    saveTaskDetails,
     get remaining() { return remaining; },
     get flipDurationMs() { return reducedMotion.current ? 0 : 140; },
     tasksForSection(sectionId: number) {
@@ -61,13 +126,11 @@ export function createBoard() {
     async addTask(sectionId: number, title: string) {
       if (await list.createTask(sectionId, title)) addingTo = null;
     },
-    editTask(id: number, title: string): Promise<boolean> {
-      const task = state.current.data.tasks.find((task) => task.id === id);
-      if (!task) return Promise.resolve(false);
-      return list.updateTask(id, { title, sectionId: task.sectionId, status: task.status });
-    },
     deleteTask: list.deleteTask,
     linkJira: list.linkJira,
+    createSubtask: list.createSubtask,
+    updateSubtask: list.updateSubtask,
+    deleteSubtask: list.deleteSubtask,
     startSection() { addingSection = true; },
     cancelSection() { addingSection = false; },
     async addSection(name: string) {

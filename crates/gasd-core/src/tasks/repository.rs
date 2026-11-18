@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
 use crate::sections::repository::find_section;
 use crate::sqlite::{require_changed, validate_order};
@@ -8,20 +8,78 @@ impl SqliteRepository {
     /// Returns tasks in section, status column, and task order.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url
+            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url, t.description
              FROM tasks t JOIN sections s ON s.id = t.section_id
              ORDER BY s.position, s.id,
                       CASE t.status WHEN 'open' THEN 0 WHEN 'inProgress' THEN 1
                            WHEN 'waiting' THEN 2 ELSE 3 END,
                       t.position, t.id",
         )?;
-        Ok(statement
+        let mut tasks: Vec<Task> = statement
             .query_map([], task_row)?
-            .collect::<rusqlite::Result<_>>()?)
+            .collect::<rusqlite::Result<_>>()?;
+        for task in &mut tasks {
+            task.subtasks = get_subtasks(&self.connection, task.id)?;
+        }
+        Ok(tasks)
     }
 
     pub fn get_task(&self, id: i64) -> Result<Task> {
         find_task(&self.connection, id)
+    }
+
+    pub fn create_subtask(&mut self, task_id: i64, title: &str) -> Result<Task> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        find_task(&tx, task_id)?;
+        tx.execute(
+            "INSERT INTO subtasks(task_id, title) VALUES (?1, ?2)",
+            params![task_id, title],
+        )?;
+        let task = find_task(&tx, task_id)?;
+        tx.commit()?;
+        Ok(task)
+    }
+
+    pub fn update_subtask(
+        &mut self,
+        task_id: i64,
+        id: i64,
+        title: &str,
+        completed: bool,
+    ) -> Result<Task> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        require_changed(
+            tx.execute(
+                "UPDATE subtasks SET title = ?1, completed = ?2 WHERE id = ?3 AND task_id = ?4",
+                params![title, completed, id, task_id],
+            )?,
+            "subtask",
+            id,
+        )?;
+        let task = find_task(&tx, task_id)?;
+        tx.commit()?;
+        Ok(task)
+    }
+
+    pub fn delete_subtask(&mut self, task_id: i64, id: i64) -> Result<Task> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        require_changed(
+            tx.execute(
+                "DELETE FROM subtasks WHERE id = ?1 AND task_id = ?2",
+                params![id, task_id],
+            )?,
+            "subtask",
+            id,
+        )?;
+        let task = find_task(&tx, task_id)?;
+        tx.commit()?;
+        Ok(task)
     }
 
     pub fn create_task(&mut self, section_id: i64, title: &str) -> Result<Task> {
@@ -54,9 +112,9 @@ impl SqliteRepository {
             current.position
         };
         tx.execute(
-            "UPDATE tasks SET title = ?1, section_id = ?2, status = ?3, position = ?4
-             WHERE id = ?5",
-            params![update.title, update.section_id, update.status, position, id],
+            "UPDATE tasks SET title = ?1, description = ?2, section_id = ?3, status = ?4, position = ?5
+             WHERE id = ?6",
+            params![update.title, update.description, update.section_id, update.status, position, id],
         )?;
         let task = find_task(&tx, id)?;
         tx.commit()?;
@@ -137,16 +195,18 @@ fn reorder_tasks(connection: &Connection, list: TaskList, ids: &[i64]) -> Result
 
 fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     Ok(Task {
-        id: row.get(0)?,
-        title: row.get(1)?,
-        section_id: row.get(2)?,
-        position: row.get(3)?,
-        status: row.get(4)?,
-        status_changed_at: row.get(5)?,
-        jira: match row.get::<_, Option<String>>(6)? {
+        id: row.get("id")?,
+        title: row.get("title")?,
+        description: row.get("description")?,
+        section_id: row.get("section_id")?,
+        position: row.get("position")?,
+        subtasks: Vec::new(),
+        status: row.get("status")?,
+        status_changed_at: row.get("status_changed_at")?,
+        jira: match row.get::<_, Option<String>>("jira_key")? {
             Some(key) => Some(crate::jira::JiraLink {
                 key,
-                url: row.get(7)?,
+                url: row.get("jira_url")?,
             }),
             None => None,
         },
@@ -154,15 +214,30 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 }
 
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
-    connection
+    let mut task = connection
         .query_row(
-            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url
+            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url, description
              FROM tasks WHERE id = ?1",
             [id],
             task_row,
         )
         .optional()?
-        .ok_or(Error::NotFound { entity: "task", id })
+        .ok_or(Error::NotFound { entity: "task", id })?;
+    task.subtasks = get_subtasks(connection, id)?;
+    Ok(task)
+}
+
+fn get_subtasks(connection: &Connection, task_id: i64) -> Result<Vec<crate::Subtask>> {
+    Ok(connection
+        .prepare("SELECT id, title, completed FROM subtasks WHERE task_id = ?1 ORDER BY id")?
+        .query_map([task_id], |row| {
+            Ok(crate::Subtask {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                completed: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?)
 }
 
 impl rusqlite::types::ToSql for TaskStatus {

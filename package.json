@@ -11,6 +11,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
+    "db:clean": "cargo run -p gasd-cli -- clean --yes",
     "tauri": "tauri"
   },
   "license": "MIT",

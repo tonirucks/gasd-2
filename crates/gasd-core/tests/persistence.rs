@@ -8,6 +8,7 @@ fn service() -> Service {
 fn update(task: &Task, section_id: i64, done: bool) -> TaskUpdate {
     TaskUpdate {
         title: task.title.clone(),
+        description: task.description.clone(),
         section_id,
         status: if done {
             TaskStatus::Done
@@ -116,6 +117,7 @@ fn missing_entities_return_typed_errors() {
     ));
     let changes = TaskUpdate {
         title: "Missing".into(),
+        description: String::new(),
         section_id: 99,
         status: TaskStatus::Open,
     };
@@ -142,6 +144,7 @@ fn invalid_move_rolls_back_all_task_changes() {
     let task = app.create_task(section.id, "Review").unwrap();
     let changes = TaskUpdate {
         title: "Changed".into(),
+        description: "Must roll back too".into(),
         section_id: 99,
         status: TaskStatus::Done,
     };
@@ -405,7 +408,7 @@ fn newer_schema_is_rejected_without_modification() {
         SqliteRepository::open(&path),
         Err(Error::UnsupportedSchema {
             found: 99,
-            supported: 1
+            supported: 2
         })
     ));
     let version: i64 = connection

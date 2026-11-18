@@ -51,6 +51,7 @@ let task = app.create_task(section.id, "Read a chapter")?;
 app.set_task_status(task.id, TaskStatus::InProgress)?;
 app.update_task(task.id, TaskUpdate {
     title: task.title,
+    description: task.description,
     section_id: section.id,
     status: TaskStatus::Done,
 })?;
@@ -75,7 +76,7 @@ app.update_task(task.id, TaskUpdate {
   `place_task`. Repeating a status, editing, moving, or reordering without changing
   status preserves it. Tracking uses the database clock; transitions within the
   same millisecond can share a timestamp.
-- `TaskUpdate` replaces title, section, and status atomically. There is no separate
+- `TaskUpdate` replaces title, description, section, and status atomically. There is no separate
   completion flag. `TaskList { section_id, status }` identifies the complete
   destination column for `place_task` and `reorder_tasks`. Placement sets both
   section and status atomically with destination ordering.
@@ -93,14 +94,15 @@ app.update_task(task.id, TaskUpdate {
   Every multi-statement mutation and migration uses an immediate transaction;
   each connection waits up to five seconds for locks before returning a storage
   error. Desktop and CLI can open separate connections to the same local file.
-- Opening a database initializes the schema transactionally using `user_version`.
-  Until the first version is finished, keep all schema changes in
-  `migrations/001_initial.sql` and keep the schema version at 1. This includes
-  tasks, status timestamps, Jira queries and links, and application settings.
-  There is no upgrade path for development databases; the owner deletes or
-  resets the database when the schema changes. Unknown newer schema versions
-  are rejected. API tokens are never stored by core; the desktop adapter uses
-  the OS credential store.
+- Opening a database applies pending migrations transactionally using `user_version`.
+  The current schema version is 2: `migrations/001_initial.sql` creates the original
+  schema, and `migrations/002_extend_task_model.sql` adds task descriptions.
+  Existing version-1 databases upgrade automatically without losing data; existing
+  tasks receive an empty description. Fresh databases apply both migrations.
+  Before changing the schema, ask the owner whether to modify the latest migration
+  or create a new one. Never reset or delete a database without explicit permission.
+  Unknown newer schema versions are rejected. API tokens are never stored by core;
+  the desktop adapter uses the OS credential store.
 - Adapters select a shared database path, create its parent directory, and map
   errors to IPC responses or CLI exit codes. The core's `storage` module
   provides shared path selection and opening for both adapters; the desktop opens

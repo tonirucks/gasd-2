@@ -1,6 +1,37 @@
-use super::{AppState, Result, with_service};
+use super::{with_service, AppState, Result};
 use gasd_core::{Task, TaskList, TaskUpdate};
 use tauri::State;
+
+#[tauri::command]
+pub async fn subtasks_create(
+    state: State<'_, AppState>,
+    task_id: i64,
+    title: String,
+) -> Result<Task> {
+    with_service(state, move |service| {
+        service.create_subtask(task_id, &title)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn subtasks_update(
+    state: State<'_, AppState>,
+    task_id: i64,
+    id: i64,
+    title: String,
+    completed: bool,
+) -> Result<Task> {
+    with_service(state, move |service| {
+        service.update_subtask(task_id, id, &title, completed)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn subtasks_delete(state: State<'_, AppState>, task_id: i64, id: i64) -> Result<Task> {
+    with_service(state, move |service| service.delete_subtask(task_id, id)).await
+}
 
 #[tauri::command]
 pub async fn tasks_create(

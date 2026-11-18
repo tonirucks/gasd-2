@@ -1,6 +1,26 @@
-use crate::{Result, Service, Task, TaskList, TaskStatus, TaskUpdate, validation::nonblank};
+use crate::{validation::nonblank, Result, Service, Task, TaskList, TaskStatus, TaskUpdate};
 
 impl Service {
+    pub fn create_subtask(&mut self, task_id: i64, title: &str) -> Result<Task> {
+        self.repository
+            .create_subtask(task_id, nonblank(title, "title")?)
+    }
+
+    pub fn update_subtask(
+        &mut self,
+        task_id: i64,
+        id: i64,
+        title: &str,
+        completed: bool,
+    ) -> Result<Task> {
+        self.repository
+            .update_subtask(task_id, id, nonblank(title, "title")?, completed)
+    }
+
+    pub fn delete_subtask(&mut self, task_id: i64, id: i64) -> Result<Task> {
+        self.repository.delete_subtask(task_id, id)
+    }
+
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         self.repository.get_tasks()
     }
