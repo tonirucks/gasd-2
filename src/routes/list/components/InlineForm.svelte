@@ -33,7 +33,7 @@
 </script>
 
 <form
-  class={["flex items-center", variant === "rename" ? "w-full gap-1 focus-within:rounded-[3px] focus-within:outline focus-within:outline-mauve focus-within:outline-offset-3" : "gap-2 rounded-md border border-surface-hover px-2 py-1.5 text-muted focus-within:border-mauve"]}
+  class={["flex items-center", variant === "rename" ? "w-full gap-1 rounded-md focus-within:outline focus-within:outline-primary focus-within:outline-offset-3" : "gap-2 rounded-md border border-border bg-surface px-2 py-1.5 text-muted focus-within:border-primary"]}
   onsubmit={submit}
 >
   {#if variant === "create"}<Plus size={16} />{/if}
@@ -48,7 +48,7 @@
       if (event.key === "Escape") oncancel();
     }}
   />
-  <button class="inline-flex shrink-0 items-center justify-center rounded p-1.25 text-muted hover:bg-surface hover:text-text" type="submit" aria-label={saveLabel}
+   <button class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary-subtle" type="submit" aria-label={saveLabel}
     ><Check size={15} /></button
   >
   <button

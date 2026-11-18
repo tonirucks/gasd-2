@@ -22,17 +22,17 @@
       event.preventDefault();
       if (await board.linkJira(task.id, key.trim())) editing = false;
     }}>
-      <input class="w-28 rounded border border-surface bg-transparent px-2 py-1 text-text" aria-label="Jira ticket key" placeholder="TEAM-123" bind:value={key} required />
-      <button class="text-mauve" type="submit">Link</button>
+      <input class="w-28 rounded-md border border-border bg-surface px-2 py-1 text-text" aria-label="Jira ticket key" placeholder="TEAM-123" bind:value={key} required />
+      <button class="text-primary" type="submit">Link</button>
       <button type="button" onclick={() => editing = false}>Cancel</button>
     </form>
   {:else}
     {#if task.jira}
-      <button class="text-mauve hover:underline" onclick={openTicket} title="Open Jira ticket">{task.jira.key} ↗</button>
+      <button class="text-primary hover:underline" onclick={openTicket} title="Open Jira ticket">{task.jira.key} ↗</button>
       <button class="ml-2 hover:text-text" aria-label={`Unlink ${task.jira.key}`} onclick={() => board.linkJira(task.id, null)}>Unlink</button>
     {:else}
-      <button class="hover:text-mauve" onclick={() => { key = ""; editing = true; }}>Link Jira ticket</button>
+      <button class="hover:text-primary" onclick={() => { key = ""; editing = true; }}>Link Jira ticket</button>
     {/if}
   {/if}
-  {#if error}<p role="alert">{error}</p>{/if}
+  {#if error}<p role="alert" class="text-error">{error}</p>{/if}
 </div>

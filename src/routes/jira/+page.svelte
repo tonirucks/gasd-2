@@ -93,54 +93,54 @@
 <svelte:window onfocus={() => { void list.load(); }} />
 
 <svelte:head>
-  <title>Jira import · little by little</title>
+  <title>Jira import · GASD</title>
   <meta name="description" content="Run saved Jira searches and link tickets to your local tasks." />
 </svelte:head>
 
 <main class="mx-auto max-w-280 px-7 pt-12 pb-20 max-[580px]:pt-9.5">
   <h1 class="font-brand text-3xl font-bold">Jira import</h1>
   <p class="mt-2 text-sm text-muted">Find Jira tickets with saved JQL queries and link them to your tasks. Jira access is read-only.</p>
-  <p class="mt-3 text-xs text-muted"><a href="/settings" class="text-mauve hover:underline">Configure your Jira connection in Settings.</a></p>
-  <section class="mt-8 rounded-lg border border-surface p-6" aria-labelledby="queries-heading">
+  <p class="mt-3 text-xs text-muted"><a href="/settings" class="text-primary hover:underline">Configure your Jira connection in Settings.</a></p>
+  <section class="mt-8 rounded-xl border border-border bg-surface p-6" aria-labelledby="queries-heading">
   <h2 id="queries-heading" class="font-brand text-lg font-semibold">Saved queries</h2>
   {#if error}
-    <div role="alert" class="mt-3 text-sm text-mauve">{error} <button class="underline" onclick={() => run(loadQueries)}>Reload queries</button></div>
+    <div role="alert" class="mt-3 text-sm text-error">{error} <button class="underline" onclick={() => run(loadQueries)}>Reload queries</button></div>
   {/if}
   {#if $list.error}
-    <div role="alert" class="mt-3 text-sm text-mauve">{$list.error} <button class="underline" disabled={$list.busy} onclick={list.load}>Reload tasks</button></div>
+    <div role="alert" class="mt-3 text-sm text-error">{$list.error} <button class="underline" disabled={$list.busy} onclick={list.load}>Reload tasks</button></div>
   {/if}
   <fieldset disabled={busy || $list.busy} class="mt-4 min-w-0 disabled:opacity-60" aria-busy={busy || $list.busy}>
     <div class="flex flex-wrap items-center gap-3 text-sm">
-      <select class="max-w-full rounded border border-surface bg-[var(--base)] p-2" aria-label="Saved JQL query" bind:value={selected} onchange={clearResults}>
+      <select class="min-h-10 max-w-full rounded-md border border-border bg-base p-2" aria-label="Saved JQL query" bind:value={selected} onchange={clearResults}>
         {#if queries.length === 0}<option value={null}>No saved queries</option>{/if}
         {#each queries as query (query.id)}<option value={query.id}>{query.name}</option>{/each}
       </select>
-      <button class="text-mauve" disabled={selected === null} onclick={() => search()}>Run query</button>
-      <button onclick={() => edit()}>New query</button>
+      <button class={editing ? "min-h-10 rounded-md px-3 text-primary hover:bg-primary-subtle" : "button-primary"} disabled={selected === null} onclick={() => search()}>Run query</button>
+      <button class="min-h-10 rounded-md px-3 hover:bg-primary-subtle hover:text-primary" onclick={() => edit()}>New query</button>
       {#if selected !== null}
-        <button onclick={() => edit(queries.find((query) => query.id === selected))}>Edit query</button>
-        <button onclick={deleteQuery}>Delete query</button>
+        <button class="min-h-10 rounded-md px-3 hover:bg-primary-subtle hover:text-primary" onclick={() => edit(queries.find((query) => query.id === selected))}>Edit query</button>
+        <button class="min-h-10 rounded-md px-3 text-muted hover:text-error" onclick={deleteQuery}>Delete query</button>
       {/if}
     </div>
     {#if editing}
       <form class="mt-4 flex flex-col gap-3" onsubmit={saveQuery}>
         <label class="text-xs">Query name
-          <input class="mt-1 block w-full rounded border border-surface bg-transparent p-2 text-sm" bind:value={name} required />
+          <input class="mt-1 block w-full rounded-md border border-border bg-base p-3 text-sm" bind:value={name} required />
         </label>
         <label class="text-xs">JQL
-          <textarea class="mt-1 block w-full rounded border border-surface bg-transparent p-2 font-mono text-sm" rows="3" placeholder="assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC" bind:value={jql} required></textarea>
+          <textarea class="mt-1 block w-full rounded-md border border-border bg-base p-3 font-mono text-sm" rows="3" placeholder="assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC" bind:value={jql} required></textarea>
         </label>
-        <div class="flex gap-3 text-sm"><button type="submit" class="text-mauve">Save query</button><button type="button" onclick={() => editing = false}>Cancel</button></div>
+        <div class="flex gap-3 text-sm"><button type="submit" class="button-primary">Save query</button><button type="button" class="min-h-10 rounded-md px-3 text-muted hover:bg-primary-subtle hover:text-primary" onclick={() => editing = false}>Cancel</button></div>
       </form>
     {/if}
     {#if searched && tickets.length === 0}<p class="mt-4 text-sm text-muted">No tickets match this query.</p>{/if}
     <ul class="mt-4 flex flex-col gap-3">
       {#each tickets as ticket (ticket.key)}
-        <li class="flex flex-wrap items-center gap-3 border-t border-surface pt-3 text-sm">
-          <button class="text-mauve hover:underline" onclick={() => run(async () => { await openUrl(ticket.url); })}>{ticket.key} ↗</button>
-          <span class="min-w-0 flex-1 wrap-anywhere">{ticket.summary}</span>
-          <span class="text-xs text-muted">{ticket.status}</span>
-          <select class="max-w-56 rounded border border-surface bg-[var(--base)] p-2 text-xs" aria-label={`Link ${ticket.key} to a task`} value="" onchange={(event) => {
+        <li class="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-sm">
+          <button class="text-primary hover:underline" onclick={() => run(async () => { await openUrl(ticket.url); })}>{ticket.key} ↗</button>
+          <span class="min-w-0 flex-1 wrap-anywhere max-[580px]:order-first max-[580px]:basis-full">{ticket.summary}</span>
+          <span class="rounded-md bg-mantle px-2 py-1 text-xs text-muted">{ticket.status}</span>
+          <select class="max-w-56 rounded-md border border-border bg-base p-2 text-xs" aria-label={`Link ${ticket.key} to a task`} value="" onchange={(event) => {
             const id = Number(event.currentTarget.value);
             event.currentTarget.value = "";
             if (!id) return;
@@ -156,12 +156,12 @@
         </li>
       {/each}
     </ul>
-    {#if nextPageToken}<button class="mt-4 text-sm text-mauve" onclick={() => search(true)}>Load more tickets</button>{/if}
+    {#if nextPageToken}<button class="mt-4 text-sm text-primary" onclick={() => search(true)}>Load more tickets</button>{/if}
   </fieldset>
   <p role="status" class="mt-2 text-xs text-muted">{busy ? "Loading Jira…" : ""}</p>
   <p role="status" class="text-xs text-muted">{$list.busy ? "Loading / updating tasks…" : ""}</p>
   {#if $list.loaded && $list.data.tasks.length === 0}
-    <p class="mt-3 text-sm text-muted">No local tasks to link yet. <a href="/" class="text-mauve hover:underline">Create a task on the board.</a></p>
+    <p class="mt-3 text-sm text-muted">No local tasks to link yet. <a href="/" class="text-primary hover:underline">Create a task on the board.</a></p>
   {/if}
   </section>
 </main>

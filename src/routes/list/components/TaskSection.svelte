@@ -1,5 +1,6 @@
 <script lang="ts">
   import { GripVertical, Pencil, Plus, Trash2 } from "@lucide/svelte";
+  import StatusIndicator from "$lib/components/StatusIndicator.svelte";
   import { dragHandle } from "svelte-dnd-action";
   import InlineForm from "./InlineForm.svelte";
   import TaskList from "./TaskList.svelte";
@@ -20,12 +21,12 @@
   }
 </script>
 
-<div class="group/heading relative mb-1 flex min-h-9 items-center gap-2.25 border-b border-surface pb-2.5">
+<div class="group/heading relative mb-1 flex min-h-9 items-center gap-2.25 border-b border-border pb-2.5">
   <span
     use:dragHandle
     role="button"
     tabindex="0"
-    class="absolute -left-7 inline-flex shrink-0 cursor-grab touch-none items-center justify-center rounded p-1.25 text-muted opacity-0 select-none hover:bg-surface active:cursor-grabbing group-hover/heading:text-mauve group-hover/heading:opacity-100 focus-visible:text-mauve focus-visible:opacity-100"
+    class="absolute -left-7 inline-flex shrink-0 cursor-grab touch-none items-center justify-center rounded p-1.25 text-muted opacity-0 select-none hover:bg-surface active:cursor-grabbing group-hover/heading:text-primary group-hover/heading:opacity-100 focus-visible:text-primary focus-visible:opacity-100"
     aria-label={`Move section ${section.name}`}
     title="Drag to reorder section · Space to pick up"
     ><GripVertical size={15} /></span
@@ -55,19 +56,19 @@
   {/if}
 </div>
 {#if confirmingDelete}
-  <div class="mb-3 rounded-md border border-surface p-3 text-xs" role="group" aria-label={`Confirm deleting ${section.name}`}>
+  <div class="mb-3 rounded-md border border-border bg-surface p-4 text-sm" role="group" aria-label={`Confirm deleting ${section.name}`}>
     <p>Delete “{section.name}” and all its tasks, including completed tasks?</p>
-    <button class="mt-2 mr-4 text-mauve" onclick={async () => { if (await board.deleteSection(section.id)) confirmingDelete = false; }}>Delete section and tasks</button>
+    <button class="mt-2 mr-4 text-error" onclick={async () => { if (await board.deleteSection(section.id)) confirmingDelete = false; }}>Delete section and tasks</button>
     <button class="text-muted" onclick={() => (confirmingDelete = false)}>Cancel</button>
   </div>
 {/if}
 <div class="overflow-x-auto pb-2">
-  <div class="grid min-w-240 grid-cols-4 gap-3 pt-3">
+  <div class="grid min-w-280 grid-cols-4 gap-4 pt-3">
     {#each columns as column (column.status)}
       {@const items = tasks.filter((task) => task.status === column.status && isVisible(task, board.now))}
-      <section class="min-w-0 rounded-lg bg-surface/40 p-2" aria-label={`${section.name} · ${column.label}`}>
-        <h3 class="mb-2 flex items-center gap-2 px-2 py-1 text-xs font-medium text-muted">
-          <span class={["size-1.5 rounded-full", column.status === "done" ? "bg-green" : "bg-mauve"]}></span>
+      <section class="group/column min-w-0 rounded-xl bg-mantle p-2" aria-label={`${section.name} · ${column.label}`}>
+        <h3 class="mb-2 flex min-h-8 items-center gap-2 px-2 py-1 text-xs font-medium text-muted">
+          <StatusIndicator status={column.status} />
           {column.label}
           <span class="ml-auto text-[11px]">{items.filter((task) => !task.isDndShadowItem).length}</span>
         </h3>
@@ -91,7 +92,7 @@
             </div>
           {:else}
             <button
-              class="inline-flex items-center gap-2 px-2 py-3 text-xs text-muted hover:text-mauve"
+              class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md px-2 py-3 text-sm text-muted opacity-0 group-hover/column:opacity-100 group-focus-within/column:opacity-100 hover:bg-primary-subtle hover:text-primary pointer-coarse:opacity-100"
               aria-label={`Add task to ${section.name}`}
               onclick={() => board.startTask(section.id)}><Plus size={14} /> Add task</button>
           {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { GripVertical, Pencil, X } from "@lucide/svelte";
+  import StatusIndicator from "$lib/components/StatusIndicator.svelte";
   import InlineForm from "./InlineForm.svelte";
   import TaskJira from "./TaskJira.svelte";
   import { dragHandle } from "svelte-dnd-action";
@@ -12,12 +13,12 @@
   let title = $state("");
 </script>
 
-<div class="group/task relative flex min-h-16 items-start gap-2 rounded-md border border-surface bg-[var(--base)] p-3 shadow-sm">
+<div class={["group/task relative flex min-h-16 items-start gap-2 rounded-lg border p-3", task.status === "done" ? "border-completed-border bg-completed-bg" : "border-border bg-surface"]}>
   <span
     use:dragHandle
     role="button"
     tabindex="0"
-    class="mt-0.5 inline-flex shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted select-none hover:text-mauve active:cursor-grabbing focus-visible:text-mauve"
+    class="inline-flex min-h-8 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted select-none hover:text-primary active:cursor-grabbing focus-visible:text-primary"
     aria-label={`Move ${task.title}`}
     title="Drag to move · Space to pick up, arrows to reorder"
     ><GripVertical size={15} /></span
@@ -34,16 +35,21 @@
     />
   {:else}
     <div class="min-w-0 flex-1">
-      <span class={["text-[13px] leading-[1.6] wrap-anywhere", task.status === "done" && "text-muted line-through"]}>{task.title}</span>
+      <span class="flex items-start gap-2">
+        {#if task.status === "done"}
+          <span class="mt-2 inline-flex shrink-0" title="Completed"><StatusIndicator status={task.status} /><span class="sr-only">Completed:</span></span>
+        {/if}
+        <span class={["text-sm leading-relaxed wrap-anywhere", task.status === "done" && "text-muted line-through"]}>{task.title}</span>
+      </span>
       <TaskJira {task} />
     </div>
     <button
-      class="inline-flex shrink-0 rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface focus-visible:opacity-100 max-[580px]:opacity-100"
+      class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 hover:bg-primary-subtle hover:text-primary focus-visible:opacity-100 pointer-coarse:opacity-100 max-[580px]:opacity-100"
       aria-label={`Edit ${task.title}`}
       onclick={() => { title = task.title; editing = true; }}><Pencil size={12} /></button>
   {/if}
   <button
-    class="inline-flex shrink-0 items-center justify-center rounded p-1.25 text-muted opacity-0 group-hover/task:opacity-100 hover:bg-surface hover:text-text focus-visible:opacity-100 max-[580px]:opacity-100"
+    class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 hover:bg-surface-hover hover:text-error focus-visible:opacity-100 pointer-coarse:opacity-100 max-[580px]:opacity-100"
     aria-label={`Remove ${task.title}`}
     onclick={() => { void board.deleteTask(task.id); }}><X size={15} /></button
   >

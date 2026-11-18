@@ -3,29 +3,55 @@
 
 @theme inline {
   --font-brand: "Manrope", sans-serif;
+  --color-base: var(--base);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-completion: var(--completion);
+  --color-completed-bg: var(--completed-bg);
+  --color-completed-border: var(--completed-border);
+  --color-status-open: var(--muted);
+  --color-status-in-progress: var(--primary);
+  --color-status-waiting: var(--status-waiting);
+  --color-status-done: var(--completion);
+  --color-error: var(--error);
   --color-mantle: var(--mantle);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-muted: var(--muted);
   --color-text: var(--text);
-  --color-mauve: var(--mauve);
-  --color-lavender: var(--lavender);
-  --color-green: var(--green);
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
 @layer base {
   :root {
     font-family: "DM Sans", sans-serif;
-    --base: #1e1e2e;
-    --mantle: #181825;
-    --surface: #313244;
-    --surface-hover: #45475a;
-    --muted: #9399b2;
-    --subtext: #a6adc8;
-    --text: #cdd6f4;
-    --mauve: #cba6f7;
-    --lavender: #b4befe;
-    --green: #a6e3a1;
+    /* GASD tokens, mapped to the app's Tailwind semantic utilities.
+       Dark remains the default for existing installations. */
+    --base: #0d1025;
+    --mantle: #11142e;
+    --surface: #161a35;
+    --surface-hover: #1d2242;
+    --border: #303454;
+    --muted: #b4b4cc;
+    --text: #f5f5ff;
+    --primary: #9b71ff;
+    --primary-hover: #b091ff;
+    --on-primary: #150d30;
+    /* Slightly deeper than the brief so primary text clears AA. */
+    --primary-subtle: #251e40;
+    --focus: #b094ff;
+    --completion: #ffd500;
+    --on-completion: #24183b;
+    --completed-bg: #292519;
+    --completed-border: #78601b;
+    --status-waiting: #91a9d6;
+    --error: #ff9cae;
+    --progress-gradient: linear-gradient(90deg, #8200ed, #00149d);
     background: var(--base);
     color: var(--text);
     color-scheme: dark;
@@ -33,6 +59,26 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  :root[data-theme="light"] {
+    --base: #f7f7fd;
+    --mantle: #f0effa;
+    --surface: #ffffff;
+    --surface-hover: #eeedf7;
+    --border: #e3e2f2;
+    --muted: #625e79;
+    --text: #191630;
+    --primary: #6d28d9;
+    --primary-hover: #5b21b6;
+    --on-primary: #ffffff;
+    --primary-subtle: #f1eaff;
+    --focus: #6d28d9;
+    --completed-bg: #fff9df;
+    --completed-border: #f5d35f;
+    --status-waiting: #48628d;
+    --error: #b4233d;
+    color-scheme: light;
   }
 
   * {
@@ -43,7 +89,9 @@
     min-width: 320px;
   }
   button,
-  input {
+  input,
+  textarea,
+  select {
     font: inherit;
   }
   button {
@@ -52,8 +100,22 @@
     color: inherit;
     cursor: pointer;
     transition:
-      background 0.15s,
-      color 0.15s;
+      background 160ms,
+      color 160ms;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  input,
+  textarea,
+  select {
+    background-color: var(--surface);
+    color: var(--text);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
   }
   a {
     color: inherit;
@@ -61,14 +123,20 @@
   }
   button,
   a,
-  input {
+  input,
+  textarea,
+  select,
+  [role="button"] {
     -webkit-tap-highlight-color: transparent;
   }
   button:focus-visible,
   a:focus-visible,
-  input:focus-visible {
-    outline: 2px solid var(--mauve);
-    outline-offset: 4px;
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
   }
   h1,
   h2,
@@ -81,8 +149,30 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    * {
+    *,
+    *::before,
+    *::after {
       transition: none !important;
+      animation: none !important;
+      scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer components {
+  .button-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    border-radius: var(--radius-md);
+    padding: 0.625rem 1rem;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 600;
+  }
+  .button-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
   }
 }
