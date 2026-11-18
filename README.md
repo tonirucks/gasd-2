@@ -66,6 +66,13 @@ usage, persistence behavior, and adapter responsibilities.
   available through the CLI. Hidden tasks are included in drag membership, and
   the display refreshes its day boundary while open and on window focus.
   Stale orders caused by CLI edits fail safely and reload current data.
+- Left-click a task card (or focus it and press Enter/Space) to open its details
+  sidebar and edit the title and optional multiline description. The panel sits
+  beside the board on wide screens and fills smaller screens. Save commits both
+  fields; Cancel, the close button, or Escape closes it, asking before discarding
+  unsaved changes. Switching tasks also checks for unsaved changes. Task cards
+  show a short description preview; the sidebar shows the full text. Quick-add
+  creates a task with an empty description. Clear the description to remove it.
 - Data reloads after writes and when the window regains focus (except during a
   drag); external CLI edits are not streamed live while the app stays focused.
 
@@ -146,6 +153,8 @@ gasd update task 1 --status waiting
 gasd update task 1 --status done
 gasd update task 1 --status open        # Reopen, not toggle
 gasd update task 1 --title "Read two chapters" --section 1
+gasd update task 1 --description "Start with the chapter on persistence"
+gasd update task 1 --description ""     # Clear the description
 gasd update section 1 --name "Home"
 gasd list tasks --status done --json
 ```
@@ -157,7 +166,7 @@ fields not supplied and require at least one change. `--status` accepts exactly
 be combined with title/section edits atomically. The old `--done` and `--active`
 flags are not supported. Human-readable output includes IDs and the actual status;
 global `--json` emits arrays of core models, including `status` and
-`statusChangedAt` (UTC Unix milliseconds), without a separate `done` field,
+`statusChangedAt` (UTC Unix milliseconds) and `description` (empty when unset), without a separate `done` field,
 for both lists and mutations. Errors go to stderr, with exit code 1 for runtime
 errors and 2 for invalid command syntax (0 for success/help/version).
 

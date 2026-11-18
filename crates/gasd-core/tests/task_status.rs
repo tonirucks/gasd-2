@@ -80,6 +80,7 @@ fn updates_and_placement_preserve_active_statuses() {
                 task.id,
                 TaskUpdate {
                     title: "Edited".into(),
+                    description: String::new(),
                     section_id: a.id,
                     status,
                 },
@@ -124,6 +125,7 @@ fn updates_and_placement_preserve_active_statuses() {
                 task.id,
                 TaskUpdate {
                     title: task.title.clone(),
+                    description: task.description.clone(),
                     section_id: a.id,
                     status: TaskStatus::Open,
                 },
@@ -167,7 +169,7 @@ fn initial_schema_persists_statuses_and_rejects_invalid_statuses() {
     let version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 1);
+    assert_eq!(version, 2);
     for sql in [
         "UPDATE tasks SET status = 'invalid' WHERE id = 10",
         "INSERT INTO tasks(title, section_id, status, position) VALUES ('Invalid', 7, 'invalid', 0)",

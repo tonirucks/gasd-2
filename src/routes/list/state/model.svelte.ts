@@ -17,6 +17,19 @@ export function createBoard() {
   let addingTo = $state<number | null>(null);
   let addingSection = $state(false);
   let editingSection = $state<number | null>(null);
+  let taskDraft = $state<{
+    id: number;
+    title: string;
+    description: string;
+    savedTitle: string;
+    savedDescription: string;
+  } | null>(null);
+  const selectedTask = $derived(
+    state.current.data.tasks.find((task) => task.id === taskDraft?.id),
+  );
+  const taskDirty = $derived(taskDraft !== null && (
+    taskDraft.title !== taskDraft.savedTitle || taskDraft.description !== taskDraft.savedDescription
+  ));
   const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)");
   const remaining = $derived(
     tasks.filter((task) => task.status !== "done" && !task.isDndShadowItem).length,
@@ -25,6 +38,7 @@ export function createBoard() {
   $effect(() => {
     sections = state.current.data.sections;
     tasks = state.current.data.tasks;
+    if (state.current.loaded && !state.current.busy && taskDraft && !selectedTask) taskDraft = null;
   });
 
   onMount(() => {
@@ -40,6 +54,33 @@ export function createBoard() {
     get addingTo() { return addingTo; },
     get addingSection() { return addingSection; },
     get editingSection() { return editingSection; },
+    get selectedTask() { return selectedTask; },
+    get taskDraft() { return taskDraft; },
+    get taskDirty() { return taskDirty; },
+    openTaskDetails(id: number) {
+      if (state.current.busy || taskDraft?.id === id) return;
+      const task = state.current.data.tasks.find((task) => task.id === id);
+      if (!task || (taskDirty && !window.confirm("Discard unsaved task changes?"))) return;
+      taskDraft = {
+        id, title: task.title, description: task.description,
+        savedTitle: task.title, savedDescription: task.description,
+      };
+    },
+    closeTaskDetails() {
+      if (state.current.busy || (taskDirty && !window.confirm("Discard unsaved task changes?"))) return;
+      taskDraft = null;
+    },
+    async saveTaskDetails(): Promise<void> {
+      const draft = taskDraft;
+      const task = selectedTask;
+      if (!draft || !task || !draft.title.trim()) return;
+      const title = draft.title.trim();
+      const description = draft.description;
+      if (await list.updateTask(task.id, { title, description, sectionId: task.sectionId, status: task.status })) {
+        draft.title = draft.savedTitle = title;
+        draft.savedDescription = description;
+      }
+    },
     get remaining() { return remaining; },
     get flipDurationMs() { return reducedMotion.current ? 0 : 140; },
     tasksForSection(sectionId: number) {
@@ -60,11 +101,6 @@ export function createBoard() {
     cancelTask() { addingTo = null; },
     async addTask(sectionId: number, title: string) {
       if (await list.createTask(sectionId, title)) addingTo = null;
-    },
-    editTask(id: number, title: string): Promise<boolean> {
-      const task = state.current.data.tasks.find((task) => task.id === id);
-      if (!task) return Promise.resolve(false);
-      return list.updateTask(id, { title, sectionId: task.sectionId, status: task.status });
     },
     deleteTask: list.deleteTask,
     linkJira: list.linkJira,

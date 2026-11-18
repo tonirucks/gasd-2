@@ -21,6 +21,7 @@ impl TaskStatus {
 pub struct Task {
     pub id: i64,
     pub title: String,
+    pub description: String,
     pub section_id: i64,
     pub status: TaskStatus,
     /// UTC Unix timestamp in milliseconds, initialized at creation and updated
@@ -36,6 +37,7 @@ pub struct Task {
 #[serde(rename_all = "camelCase")]
 pub struct TaskUpdate {
     pub title: String,
+    pub description: String,
     pub section_id: i64,
     pub status: TaskStatus,
 }

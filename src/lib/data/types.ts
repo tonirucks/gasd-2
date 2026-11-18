@@ -4,13 +4,14 @@ export type TaskStatus = "open" | "inProgress" | "waiting" | "done";
 export type Task = {
   id: number;
   title: string;
+  description: string;
   sectionId: number;
   status: TaskStatus;
   statusChangedAt: number;
   position: number;
   jira?: { key: string; url: string };
 };
-export type TaskUpdate = Pick<Task, "title" | "sectionId" | "status">;
+export type TaskUpdate = Pick<Task, "title" | "description" | "sectionId" | "status">;
 export type TaskList = { sectionId: number; status: TaskStatus };
 export type ListData = { sections: Section[]; tasks: Task[] };
 export type CommandError = { code: string; message: string };

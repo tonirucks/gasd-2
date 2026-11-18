@@ -59,6 +59,7 @@ fn one_link_per_task_survives_edits_and_can_be_removed_offline() {
             task.id,
             TaskUpdate {
                 title: "Edited".into(),
+                description: "Review the acceptance criteria".into(),
                 section_id: section.id,
                 status: TaskStatus::Waiting,
             },

@@ -7,7 +7,7 @@ import type { ListData } from "./types";
 function setup() {
   const data: ListData = {
     sections: [{ id: 1, name: "Work", position: 0 }],
-    tasks: [{ id: 2, title: "Review", sectionId: 1, status: "open", statusChangedAt: 1, position: 0 }],
+    tasks: [{ id: 2, title: "Review", description: "", sectionId: 1, status: "open", statusChangedAt: 1, position: 0 }],
   };
   const client = {
     get: vi.fn().mockResolvedValue(data),
@@ -18,6 +18,18 @@ function setup() {
 }
 
 describe("list store", () => {
+  it("saves and clears task descriptions and refreshes canonical data", async () => {
+    const { store, client, data } = setup();
+    const update = { title: "Review", description: "Check the changes\nThen approve", sectionId: 1, status: "open" } as const;
+    client.get.mockResolvedValueOnce({ ...data, tasks: [{ ...data.tasks[0], ...update }] });
+    expect(await store.updateTask(2, update)).toBe(true);
+    expect(client.tasks.update).toHaveBeenLastCalledWith(2, update);
+    expect(get(store).data.tasks[0].description).toBe(update.description);
+    expect(await store.updateTask(2, { ...update, description: "" })).toBe(true);
+    expect(client.tasks.update).toHaveBeenLastCalledWith(2, { ...update, description: "" });
+    expect(get(store).data.tasks[0].description).toBe("");
+  });
+
   it("refreshes after linking and unlinking Jira tickets", async () => {
     const { store, client } = setup();
     expect(await store.linkJira(2, "TEAM-1")).toBe(true);

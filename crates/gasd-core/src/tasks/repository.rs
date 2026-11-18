@@ -8,7 +8,7 @@ impl SqliteRepository {
     /// Returns tasks in section, status column, and task order.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url
+            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url, t.description
              FROM tasks t JOIN sections s ON s.id = t.section_id
              ORDER BY s.position, s.id,
                       CASE t.status WHEN 'open' THEN 0 WHEN 'inProgress' THEN 1
@@ -54,9 +54,9 @@ impl SqliteRepository {
             current.position
         };
         tx.execute(
-            "UPDATE tasks SET title = ?1, section_id = ?2, status = ?3, position = ?4
-             WHERE id = ?5",
-            params![update.title, update.section_id, update.status, position, id],
+            "UPDATE tasks SET title = ?1, description = ?2, section_id = ?3, status = ?4, position = ?5
+             WHERE id = ?6",
+            params![update.title, update.description, update.section_id, update.status, position, id],
         )?;
         let task = find_task(&tx, id)?;
         tx.commit()?;
@@ -137,16 +137,17 @@ fn reorder_tasks(connection: &Connection, list: TaskList, ids: &[i64]) -> Result
 
 fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     Ok(Task {
-        id: row.get(0)?,
-        title: row.get(1)?,
-        section_id: row.get(2)?,
-        position: row.get(3)?,
-        status: row.get(4)?,
-        status_changed_at: row.get(5)?,
-        jira: match row.get::<_, Option<String>>(6)? {
+        id: row.get("id")?,
+        title: row.get("title")?,
+        description: row.get("description")?,
+        section_id: row.get("section_id")?,
+        position: row.get("position")?,
+        status: row.get("status")?,
+        status_changed_at: row.get("status_changed_at")?,
+        jira: match row.get::<_, Option<String>>("jira_key")? {
             Some(key) => Some(crate::jira::JiraLink {
                 key,
-                url: row.get(7)?,
+                url: row.get("jira_url")?,
             }),
             None => None,
         },
@@ -156,7 +157,7 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
     connection
         .query_row(
-            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url
+            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url, description
              FROM tasks WHERE id = ?1",
             [id],
             task_row,

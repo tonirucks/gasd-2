@@ -11,6 +11,8 @@
   import InlineForm from "./list/components/InlineForm.svelte";
   import ListHeader from "./list/components/ListHeader.svelte";
   import TaskSection from "./list/components/TaskSection.svelte";
+  import TaskDetails from "./list/components/TaskDetails.svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import { provideBoard } from "./list/state/context";
   import { createBoard } from "./list/state/model.svelte";
   import type { Section } from "./list/state/types";
@@ -18,6 +20,7 @@
   const board = createBoard();
   provideBoard(board);
   let sectionName = $state("");
+  const narrowScreen = new MediaQuery("(max-width: 900px)");
 
   function reorderSections(event: CustomEvent<DndEvent<Section>>): void {
     board.reorderSections(event.detail.items);
@@ -43,7 +46,8 @@
   />
 </svelte:head>
 
-<div>
+<div class={board.selectedTask && "min-[901px]:pr-104"}>
+  <div inert={Boolean(board.selectedTask) && narrowScreen.current}>
   <main class="mx-auto max-w-360 px-7 pt-12 pb-20 max-[580px]:pt-9.5 max-[580px]:pb-12.5">
     {#if board.state.error}
       <div role="alert" class="mb-6 rounded-lg border border-error p-4 text-sm text-error">
@@ -109,4 +113,8 @@
       </div>
     {/if}
   </main>
+  </div>
+  {#if board.selectedTask}
+    <TaskDetails />
+  {/if}
 </div>

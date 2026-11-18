@@ -71,6 +71,7 @@ fn updates_placement_and_rollback_handle_timestamps() {
             task.id,
             TaskUpdate {
                 title: "Edited".into(),
+                description: "Additional details".into(),
                 section_id: b.id,
                 status: TaskStatus::Waiting,
             },
@@ -109,6 +110,7 @@ fn updates_placement_and_rollback_handle_timestamps() {
                 task.id,
                 TaskUpdate {
                     title: "Edited".into(),
+                    description: "Additional details".into(),
                     section_id: a.id,
                     status,
                 },
