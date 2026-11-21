@@ -6,6 +6,7 @@
   import StatusIndicator from "$lib/components/StatusIndicator.svelte";
   import TaskJira from "./TaskJira.svelte";
   import TaskSubtasks from "./TaskSubtasks.svelte";
+  import TaskFolder from "./TaskFolder.svelte";
 
   const board = getBoard();
   const narrowScreen = new MediaQuery("(max-width: 900px)");
@@ -107,6 +108,7 @@
       </form>
       {#key board.selectedTask.id}
         <TaskSubtasks task={board.selectedTask} />
+        <TaskFolder task={board.selectedTask} />
       {/key}
       <section class="mt-6 border-t border-border pt-6" aria-labelledby="task-jira-heading">
         <h3 id="task-jira-heading" class="mb-3 text-sm font-medium">Jira ticket</h3>

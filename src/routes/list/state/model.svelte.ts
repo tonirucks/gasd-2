@@ -128,6 +128,7 @@ export function createBoard() {
     },
     deleteTask: list.deleteTask,
     linkJira: list.linkJira,
+    linkFolder: list.linkFolder,
     createSubtask: list.createSubtask,
     updateSubtask: list.updateSubtask,
     deleteSubtask: list.deleteSubtask,

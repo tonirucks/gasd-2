@@ -2,6 +2,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("folder must be an existing directory with a valid Unicode path")]
+    InvalidFolder,
     #[error("{field} must not be blank")]
     Validation { field: &'static str },
     #[error("{entity} {id} was not found")]

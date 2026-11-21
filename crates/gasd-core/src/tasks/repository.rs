@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::sections::repository::find_section;
 use crate::sqlite::{require_changed, validate_order};
@@ -8,7 +8,7 @@ impl SqliteRepository {
     /// Returns tasks in section, status column, and task order.
     pub fn get_tasks(&self) -> Result<Vec<Task>> {
         let mut statement = self.connection.prepare(
-            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url, t.description
+            "SELECT t.id, t.title, t.section_id, t.position, t.status, t.status_changed_at, t.jira_key, t.jira_url, t.description, t.folder
              FROM tasks t JOIN sections s ON s.id = t.section_id
              ORDER BY s.position, s.id,
                       CASE t.status WHEN 'open' THEN 0 WHEN 'inProgress' THEN 1
@@ -83,14 +83,45 @@ impl SqliteRepository {
     }
 
     pub fn create_task(&mut self, section_id: i64, title: &str) -> Result<Task> {
+        self.create_task_with_folder(section_id, title, None)
+    }
+
+    pub fn get_task_folders(&self) -> Result<Vec<String>> {
+        Ok(self
+            .connection
+            .prepare("SELECT DISTINCT folder FROM tasks WHERE folder IS NOT NULL ORDER BY folder")?
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn link_task_folder(&mut self, id: i64, folder: Option<&str>) -> Result<Task> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        find_task(&tx, id)?;
+        tx.execute(
+            "UPDATE tasks SET folder = ?1 WHERE id = ?2",
+            params![folder, id],
+        )?;
+        let task = find_task(&tx, id)?;
+        tx.commit()?;
+        Ok(task)
+    }
+
+    pub fn create_task_with_folder(
+        &mut self,
+        section_id: i64,
+        title: &str,
+        folder: Option<&str>,
+    ) -> Result<Task> {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         find_section(&tx, section_id)?;
         let position = next_task_position(&tx, section_id, TaskStatus::Open)?;
         tx.execute(
-            "INSERT INTO tasks(title, section_id, position) VALUES (?1, ?2, ?3)",
-            params![title, section_id, position],
+            "INSERT INTO tasks(title, section_id, position, folder) VALUES (?1, ?2, ?3, ?4)",
+            params![title, section_id, position, folder],
         )?;
         let task = find_task(&tx, tx.last_insert_rowid())?;
         tx.commit()?;
@@ -198,6 +229,7 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         id: row.get("id")?,
         title: row.get("title")?,
         description: row.get("description")?,
+        folder: row.get("folder")?,
         section_id: row.get("section_id")?,
         position: row.get("position")?,
         subtasks: Vec::new(),
@@ -216,7 +248,7 @@ fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 fn find_task(connection: &Connection, id: i64) -> Result<Task> {
     let mut task = connection
         .query_row(
-            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url, description
+            "SELECT id, title, section_id, position, status, status_changed_at, jira_key, jira_url, description, folder
              FROM tasks WHERE id = ?1",
             [id],
             task_row,

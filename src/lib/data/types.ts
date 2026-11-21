@@ -6,6 +6,7 @@ export type Task = {
   id: number;
   title: string;
   description: string;
+  folder?: string;
   sectionId: number;
   status: TaskStatus;
   statusChangedAt: number;

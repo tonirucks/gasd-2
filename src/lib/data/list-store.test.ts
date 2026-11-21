@@ -12,7 +12,7 @@ function setup() {
   const client = {
     get: vi.fn().mockResolvedValue(data),
     sections: { create: vi.fn(), rename: vi.fn(), delete: vi.fn(), reorder: vi.fn() },
-    tasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), reorder: vi.fn(), place: vi.fn(), linkJira: vi.fn() },
+    tasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), reorder: vi.fn(), place: vi.fn(), linkJira: vi.fn(), linkFolder: vi.fn() },
     subtasks: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   } satisfies ListClient;
   return { data, client, store: createListStore(client) };

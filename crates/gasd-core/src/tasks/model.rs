@@ -22,6 +22,8 @@ pub struct Task {
     pub id: i64,
     pub title: String,
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
     pub section_id: i64,
     pub status: TaskStatus,
     /// UTC Unix timestamp in milliseconds, initialized at creation and updated

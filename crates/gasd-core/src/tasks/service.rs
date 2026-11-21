@@ -1,6 +1,26 @@
-use crate::{validation::nonblank, Result, Service, Task, TaskList, TaskStatus, TaskUpdate};
+use crate::{Result, Service, Task, TaskList, TaskStatus, TaskUpdate, validation::nonblank};
 
 impl Service {
+    pub fn get_task_folders(&self) -> Result<Vec<String>> {
+        self.repository.get_task_folders()
+    }
+
+    pub fn link_task_folder(&mut self, id: i64, folder: Option<&str>) -> Result<Task> {
+        let folder = folder.map(normalize_folder).transpose()?;
+        self.repository.link_task_folder(id, folder.as_deref())
+    }
+
+    pub fn create_task_with_folder(
+        &mut self,
+        section_id: i64,
+        title: &str,
+        folder: &str,
+    ) -> Result<Task> {
+        let title = nonblank(title, "title")?;
+        let folder = normalize_folder(folder)?;
+        self.repository
+            .create_task_with_folder(section_id, title, Some(&folder))
+    }
     pub fn create_subtask(&mut self, task_id: i64, title: &str) -> Result<Task> {
         self.repository
             .create_subtask(task_id, nonblank(title, "title")?)
@@ -55,4 +75,16 @@ impl Service {
     pub fn place_task(&mut self, id: i64, list: TaskList, ids: &[i64]) -> Result<()> {
         self.repository.place_task(id, list, ids)
     }
+}
+
+fn normalize_folder(folder: &str) -> Result<String> {
+    let path = std::path::Path::new(folder)
+        .canonicalize()
+        .map_err(|_| crate::Error::InvalidFolder)?;
+    if !path.is_dir() {
+        return Err(crate::Error::InvalidFolder);
+    }
+    path.to_str()
+        .map(str::to_owned)
+        .ok_or(crate::Error::InvalidFolder)
 }

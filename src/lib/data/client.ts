@@ -24,6 +24,7 @@ export const listClient = {
     reorder: (list: TaskList, ids: number[]) => invoke<void>("tasks_reorder", { list, ids }),
     place: (id: number, list: TaskList, ids: number[]) => invoke<void>("tasks_place", { id, list, ids }),
     linkJira: (taskId: number, key: string | null) => invoke<Task>("jira_task_link", { taskId, key }),
+    linkFolder: (id: number, folder: string | null) => invoke<Task>("tasks_link_folder", { id, folder }),
   },
   subtasks: {
     create: (taskId: number, title: string) => invoke<Task>("subtasks_create", { taskId, title }),
@@ -34,6 +35,11 @@ export const listClient = {
 };
 
 export type ListClient = typeof listClient;
+
+export const folderClient = {
+  get: () => invoke<string[]>("task_folders_get"),
+  openEditor: (id: number, editor: "vscode" | "zed") => invoke<void>("tasks_open_editor", { id, editor }),
+};
 
 export const jiraClient = {
   queries: () => invoke<JiraQuery[]>("jira_queries"),

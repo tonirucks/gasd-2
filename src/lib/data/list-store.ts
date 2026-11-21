@@ -69,6 +69,7 @@ export function createListStore(client: ListClient = listClient) {
       run(() => client.tasks.update(id, update)),
     deleteTask: (id: number) => run(() => client.tasks.delete(id)),
     linkJira: (id: number, key: string | null) => run(() => client.tasks.linkJira(id, key)),
+    linkFolder: (id: number, folder: string | null) => run(() => client.tasks.linkFolder(id, folder)),
     createSubtask: (...args: Parameters<ListClient["subtasks"]["create"]>) => run(() => client.subtasks.create(...args)),
     updateSubtask: (...args: Parameters<ListClient["subtasks"]["update"]>) => run(() => client.subtasks.update(...args)),
     deleteSubtask: (...args: Parameters<ListClient["subtasks"]["delete"]>) => run(() => client.subtasks.delete(...args)),

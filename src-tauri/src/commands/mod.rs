@@ -1,8 +1,10 @@
+mod editors;
 mod jira;
 mod sections;
 mod settings;
 mod tasks;
 
+pub use editors::*;
 pub use jira::*;
 pub use sections::*;
 pub use settings::*;
@@ -25,7 +27,7 @@ pub struct CommandError {
 impl From<gasd_core::Error> for CommandError {
     fn from(error: gasd_core::Error) -> Self {
         let code = match &error {
-            gasd_core::Error::Validation { .. } => "validation",
+            gasd_core::Error::Validation { .. } | gasd_core::Error::InvalidFolder => "validation",
             gasd_core::Error::NotFound { .. } => "notFound",
             gasd_core::Error::InvalidOrder => "invalidOrder",
             _ => "storage",

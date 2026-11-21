@@ -1,6 +1,23 @@
-use super::{with_service, AppState, Result};
+use super::{AppState, Result, with_service};
 use gasd_core::{Task, TaskList, TaskUpdate};
 use tauri::State;
+
+#[tauri::command]
+pub async fn task_folders_get(state: State<'_, AppState>) -> Result<Vec<String>> {
+    with_service(state, |service| service.get_task_folders()).await
+}
+
+#[tauri::command]
+pub async fn tasks_link_folder(
+    state: State<'_, AppState>,
+    id: i64,
+    folder: Option<String>,
+) -> Result<Task> {
+    with_service(state, move |service| {
+        service.link_task_folder(id, folder.as_deref())
+    })
+    .await
+}
 
 #[tauri::command]
 pub async fn subtasks_create(

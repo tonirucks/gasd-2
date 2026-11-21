@@ -55,8 +55,9 @@ enum Command {
 enum Add {
     Task {
         title: String,
+        /// Target section (defaults to the first section in board order)
         #[arg(long)]
-        section: i64,
+        section: Option<i64>,
     },
     Section {
         name: String,
@@ -140,10 +141,10 @@ fn tasks(rows: &[Task], json: bool) -> Result<(), Box<dyn Error>> {
     print_rows(
         rows,
         json,
-        "ID\tSECTION\tSTATUS\tTITLE\tDESCRIPTION",
+        "ID\tSECTION\tSTATUS\tTITLE\tDESCRIPTION\tFOLDER",
         |task| {
             format!(
-                "{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}",
                 task.id,
                 task.section_id,
                 match task.status {
@@ -153,7 +154,8 @@ fn tasks(rows: &[Task], json: bool) -> Result<(), Box<dyn Error>> {
                     TaskStatus::Done => "done",
                 },
                 text(&task.title),
-                text(&task.description)
+                text(&task.description),
+                text(task.folder.as_deref().unwrap_or(""))
             )
         },
     )
@@ -216,7 +218,26 @@ fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         Command::Clean { .. } => unreachable!("clean is handled before opening the database"),
         Command::Add {
             item: Add::Task { title, section },
-        } => tasks(&[service.create_task(section, &title)?], cli.json),
+        } => {
+            let section = match section {
+                Some(id) => id,
+                None => service
+                    .get_sections()?
+                    .first()
+                    .ok_or(
+                        "no sections available; create one with `gasd add section <name>` first",
+                    )?
+                    .id,
+            };
+            let directory = std::env::current_dir()?;
+            let folder = directory
+                .to_str()
+                .ok_or("current directory is not valid Unicode")?;
+            tasks(
+                &[service.create_task_with_folder(section, &title, folder)?],
+                cli.json,
+            )
+        }
         Command::Add {
             item: Add::Section { name },
         } => sections(&[service.create_section(&name)?], cli.json),

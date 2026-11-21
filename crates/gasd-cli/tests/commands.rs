@@ -26,6 +26,60 @@ fn json(path: &Path, args: &[&str]) -> Value {
 }
 
 #[test]
+fn omitted_section_uses_board_order_and_explicit_section_overrides_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = directory.path().join("tasks.sqlite3");
+    json(&db, &["add", "section", "First created"]);
+    json(&db, &["add", "section", "First on board"]);
+    let mut service = gasd_core::storage::open(&db).unwrap();
+    service.reorder_sections(&[2, 1]).unwrap();
+    let task = json(&db, &["add", "task", "Default section"]);
+    assert_eq!(task[0]["sectionId"], 2);
+    assert!(task[0]["folder"].is_string());
+    let task = json(&db, &["add", "task", "Explicit section", "--section", "1"]);
+    assert_eq!(task[0]["sectionId"], 1);
+}
+
+#[test]
+fn omitted_section_without_sections_fails_with_guidance() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = directory.path().join("tasks.sqlite3");
+    let output = invoke(&db, &["add", "task", "No destination"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("gasd add section <name>"));
+    assert_eq!(json(&db, &["list"]), serde_json::json!([]));
+    assert_eq!(json(&db, &["list", "sections"]), serde_json::json!([]));
+}
+
+#[test]
+fn creation_links_the_invocation_directory_and_edits_preserve_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = directory.path().join("tasks.sqlite3");
+    json(&db, &["add", "section", "Work"]);
+    let output = Command::new(env!("CARGO_BIN_EXE_gasd"))
+        .current_dir(directory.path())
+        .env("GASD_DATABASE", &db)
+        .args(["add", "task", "Review", "--section", "1", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let task: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let expected = directory.path().canonicalize().unwrap();
+    assert_eq!(task[0]["folder"], expected.to_str().unwrap());
+    let updated = json(&db, &["update", "task", "1", "--title", "Edited"]);
+    assert_eq!(updated[0]["folder"], task[0]["folder"]);
+    let service = gasd_core::storage::open(&db).unwrap();
+    assert_eq!(
+        service.get_task_folders().unwrap(),
+        vec![expected.to_str().unwrap()]
+    );
+}
+
+#[test]
 fn command_workflow_persists_and_preserves_unspecified_fields() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("nested/tasks.sqlite3");
@@ -166,7 +220,7 @@ fn invalid_commands_fail_without_changes() {
         vec!["update", "task", "1", "--title", " "],
         vec!["update", "task", "1", "--section", "999"],
         vec!["add", "section", " "],
-        vec!["add", "task", "Missing section"],
+        vec!["add", "task", "Missing section", "--section", "999"],
         vec!["list", "tasks", "--done", "--active"],
         vec!["list", "tasks", "--status", "invalid"],
         vec!["list", "tasks", "--active"],

@@ -138,6 +138,19 @@ Jira query management and linking are desktop-only for now.
 
 ## Command-line interface
 
+Tasks created with `gasd add task` automatically link to the current working
+directory. Omit `--section` to use the first section in board order; if no
+sections exist, create one first with `gasd add section <name>`.
+Task JSON includes `folder` when linked; text output includes a
+FOLDER column. In task details, use **Link folder** / **Change folder** to
+fuzzy-search previously linked directories or enter a full directory path.
+The picker lists distinct folders linked to existing tasks. A folder disappears
+from the list when no task references it anymore.
+
+Folder support extends migration `002_extend_task_model.sql` in place.
+Databases that already applied version 2 need a separate upgrade before using
+this schema; they are not automatically reset or migrated again.
+
 The non-interactive CLI lives in `crates/gasd-cli/` and builds a `gasd` binary.
 Install it locally (no Node.js or Tauri dependencies required):
 
